@@ -21,6 +21,7 @@ import { checkOpenOCDEnvironment, showOpenOCDConfigurationWizard, showEnvironmen
 import { ensureCortexDebugInstalled, isCortexDebugInstalled } from './utils/cortex-debug';
 import { findArmToolchainPath, getArmToolchainInfo, validateArmToolchainPath, ToolchainInfo, toPortableArmToolchainPath, enumerateArmToolchains, deriveGdbPath, toolchainBinDir } from './utils/armToolchain';
 import { detectStm32Device } from './utils/deviceDetector';
+import { detectExecutables } from './utils/executableDetector';
 import { LocalizationManager, SupportedLanguage } from './localization/localizationManager';
 import { normalizePath } from './utils/pathUtils';
 import { ToolchainDetectionService, StateManager, ExtensionConfigurationState } from './services';
@@ -607,6 +608,18 @@ export function activate(context: vscode.ExtensionContext) {
                 }
             } catch (error) {
                 console.warn('[DeviceDetect] auto-detection failed:', error);
+            }
+
+            // 扫描工作区固件文件（.elf / .axf / .bin / .hex）
+            try {
+                const execs = await detectExecutables();
+                console.log('[ExecDetect] found', execs.length, 'firmware file(s)');
+                currentPanel.webview.postMessage({
+                    command: 'updateExecutableCandidates',
+                    candidates: execs
+                });
+            } catch (error) {
+                console.warn('[ExecDetect] failed:', error);
             }
 
         })

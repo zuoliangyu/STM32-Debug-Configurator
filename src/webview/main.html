@@ -25,16 +25,17 @@
         <p data-i18n="subtitle">Fill in the details below to generate a `launch.json` configuration for Cortex-Debug.</p>
 
         <div class="form-group">
-            <label data-i18n="elfSource">Executable (.elf) Path Source</label>
-            <div class="radio-group">
-                <label><input type="radio" name="elfSource" value="auto" checked> <span data-i18n="autoDetectElf">Auto-detect (Requires ST's STM32 Extension)</span></label>
-                <label><input type="radio" name="elfSource" value="manual"> <span data-i18n="manualElf">Manual Path</span></label>
+            <label for="executablePath" data-i18n="executable">Executable (.elf / .axf / .bin / .hex)</label>
+            <div class="form-group hidden" id="executable-candidates-group" style="margin-bottom: 6px;">
+                <select id="executableCandidates"></select>
             </div>
-        </div>
-
-        <div class="form-group hidden" id="manual-elf-path-group">
-            <label for="executablePath" data-i18n="manualElfPath">Manual .elf Path</label>
-            <input type="text" id="executablePath" placeholder="e.g., ${workspaceFolder}/build/project.elf">
+            <input type="text" id="executablePath" data-i18n-placeholder="executablePlaceholder" placeholder="${workspaceFolder}/build/Debug/project.elf">
+            <small id="executableDetectedHint" class="detection-hint hidden"></small>
+            <!-- 保留旧的 radio 隐藏占位，避免 main.js 里 elfSourceRadios 引用爆 ReferenceError -->
+            <div class="hidden">
+                <input type="radio" name="elfSource" value="auto" checked>
+                <input type="radio" name="elfSource" value="manual">
+            </div>
         </div>
         <div class="form-group">
             <label for="deviceName" data-i18n="deviceName">Device Name (e.g., STM32F407ZG)</label>

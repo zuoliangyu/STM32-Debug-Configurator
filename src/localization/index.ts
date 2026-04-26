@@ -129,6 +129,14 @@ export interface LocalizedStrings {
     armToolchainCandidates: string;
     /** 传输方式（SWD/JTAG）下拉框标签 */
     transportInterface: string;
+    /** 固件文件标签 */
+    executable: string;
+    /** 固件路径输入占位符 */
+    executablePlaceholder: string;
+    /** 固件下拉框占位选项 */
+    executablePickHint: string;
+    /** 固件检测结果提示 */
+    executableDetectedHint: string;
     /** SVD文件占位符 */
     svdPlaceholder: string;
     /** 自动检测中 */

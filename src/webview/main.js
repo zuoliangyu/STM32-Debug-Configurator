@@ -59,7 +59,11 @@
         deviceNameInput: document.getElementById('deviceName'),
         deviceDetectedHint: document.getElementById('deviceDetectedHint'),
         armToolchainCandidatesGroup: document.getElementById('arm-toolchain-candidates-group'),
-        armToolchainCandidatesSelect: document.getElementById('armToolchainCandidates')
+        armToolchainCandidatesSelect: document.getElementById('armToolchainCandidates'),
+        executablePathInput: document.getElementById('executablePath'),
+        executableCandidatesGroup: document.getElementById('executable-candidates-group'),
+        executableCandidatesSelect: document.getElementById('executableCandidates'),
+        executableDetectedHint: document.getElementById('executableDetectedHint')
     };
 
     // Localization functions
@@ -631,6 +635,16 @@
             });
         }
 
+        // 固件下拉切换 → 同步到 executablePath input
+        if (elements.executableCandidatesSelect) {
+            elements.executableCandidatesSelect.addEventListener('change', (e) => {
+                const picked = e.target.value;
+                if (picked && elements.executablePathInput) {
+                    elements.executablePathInput.value = picked;
+                }
+            });
+        }
+
         // ARM 工具链下拉切换 → 同步到 input + 触发版本/路径刷新
         if (elements.armToolchainCandidatesSelect) {
             elements.armToolchainCandidatesSelect.addEventListener('change', (e) => {
@@ -918,6 +932,53 @@
                 showMessage(message.error, 'error');
                 break;
 
+            case 'updateExecutableCandidates':
+                if (elements.executableCandidatesSelect && elements.executableCandidatesGroup) {
+                    const candidates = Array.isArray(message.candidates) ? message.candidates : [];
+                    const select = elements.executableCandidatesSelect;
+                    select.innerHTML = '';
+                    if (candidates.length === 0) {
+                        elements.executableCandidatesGroup.classList.add('hidden');
+                        if (elements.executableDetectedHint) {
+                            elements.executableDetectedHint.classList.add('hidden');
+                        }
+                        break;
+                    }
+                    // 第一个候选（排序后最优）作为默认占位
+                    const placeholder = document.createElement('option');
+                    placeholder.value = '';
+                    placeholder.disabled = true;
+                    placeholder.textContent = (typeof strings !== 'undefined' && strings.executablePickHint) || '— pick a firmware file —';
+                    select.appendChild(placeholder);
+                    candidates.forEach((c) => {
+                        const opt = document.createElement('option');
+                        opt.value = c.workspaceUri;
+                        const sizeKb = (c.size / 1024).toFixed(1);
+                        opt.textContent = `[${c.variant}] ${c.relativePath} · ${c.kind.toUpperCase()} · ${sizeKb} KB`;
+                        select.appendChild(opt);
+                    });
+                    elements.executableCandidatesGroup.classList.remove('hidden');
+
+                    // 仅在用户尚未输入时自动填第一个候选
+                    const cur = elements.executablePathInput?.value.trim();
+                    if (!cur) {
+                        const top = candidates[0];
+                        if (elements.executablePathInput) {
+                            elements.executablePathInput.value = top.workspaceUri;
+                        }
+                        select.value = top.workspaceUri;
+                        if (elements.executableDetectedHint) {
+                            const tmpl = (typeof strings !== 'undefined' && strings.executableDetectedHint) || 'Detected {0} firmware file(s); using {1}';
+                            elements.executableDetectedHint.textContent = tmpl
+                                .replace('{0}', String(candidates.length))
+                                .replace('{1}', top.relativePath);
+                            elements.executableDetectedHint.classList.remove('hidden');
+                        }
+                    }
+                    console.log('[ExecDetect] candidates:', candidates);
+                }
+                break;
+
             case 'updateDetectedDevice':
                 console.log('[DeviceDetect] received', message);
                 if (message.device && elements.deviceNameInput) {
@@ -1189,10 +1250,8 @@
      * 获取当前配置数据
      */
     function getCurrentConfigurationData() {
-        const elfSource = document.querySelector('input[name="elfSource"]:checked').value;
-        const executablePath = elfSource === 'auto'
-            ? '${command:st-stm32-ide-debug-launch.get-projects-binary-from-context1}'
-            : document.getElementById('executablePath').value;
+        // 现在 executablePath input 已经统一承载（自动检测会预填，用户也能手动改）
+        const executablePath = document.getElementById('executablePath').value;
 
         const liveWatchEnabled = elements.liveWatchEnabledCheckbox.checked;
         let liveWatchData = null;
