@@ -356,6 +356,18 @@ small {
     display: none;
 }
 
+/* 设备型号自动检测提示 */
+.detection-hint {
+    display: block;
+    margin-top: 6px;
+    font-size: 0.85em;
+    color: var(--vscode-descriptionForeground);
+    font-style: italic;
+}
+.detection-hint.hidden {
+    display: none;
+}
+
 /* Live Watch 特定样式 */
 textarea {
     resize: vertical;

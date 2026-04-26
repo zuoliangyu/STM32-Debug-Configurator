@@ -13,7 +13,7 @@ class StateManager {
         this.state = {
             // 基础配置
             language: 'en',
-            deviceName: 'STM32F407ZG',
+            deviceName: '',
             servertype: 'openocd',
             elfSource: 'auto',
             
@@ -213,7 +213,7 @@ class StateManager {
     getDefaultState() {
         return {
             language: 'en',
-            deviceName: 'STM32F407ZG',
+            deviceName: '',
             servertype: 'openocd',
             elfSource: 'auto',
             executablePath: '',

@@ -246,7 +246,8 @@
     "test:extension": "npm run compile && mocha ./out/test/extension-activation.test.js --timeout 5000",
     "test:all": "npm run test:unit && npm run test:integration && npm run test:platform && npm run test:toolchain",
     "test:watch": "npm run compile && mocha ./out/test/**/*.test.js --watch",
-    "test:coverage": "nyc npm run test:all"
+    "test:coverage": "nyc npm run test:all",
+    "test:device": "npm run compile && node scripts/test-device-detector.js"
   },
   "devDependencies": {
     "@types/jsdom": "^21.1.6",

@@ -27,6 +27,8 @@ import { findOpenOCDPathEnhanced } from './openocdEnvHelper';
  * 包括STM32CubeIDE、独立安装、xPack等各种安装方式
  */
 const COMMON_OPENOCD_PATHS = [
+    // STM32 VS Code Extension 自动下载的 OpenOCD bundle
+    '%LOCALAPPDATA%\\stm32cube\\bundles\\openocd\\*\\bin\\openocd.exe',
     // STM32CubeIDE installations
     'C:\\ST\\STM32CubeIDE_*\\STM32CubeIDE\\plugins\\com.st.stm32cube.ide.mcu.externaltools.openocd.win32_*\\tools\\bin\\openocd.exe',
     // Standalone OpenOCD installations

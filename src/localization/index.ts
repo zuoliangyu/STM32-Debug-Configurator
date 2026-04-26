@@ -123,6 +123,8 @@ export interface LocalizedStrings {
     // 占位符和帮助文本
     /** 设备名占位符 */
     devicePlaceholder: string;
+    /** 自动检测到设备型号的提示 */
+    deviceDetectedHint: string;
     /** SVD文件占位符 */
     svdPlaceholder: string;
     /** 自动检测中 */

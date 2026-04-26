@@ -20,6 +20,8 @@ export const COMMON_ARM_TOOLCHAIN_PATHS = [
     // GNU Arm Embedded Toolchain官方安装路径
     'C:\\Program Files (x86)\\GNU Arm Embedded Toolchain\\*\\bin\\arm-none-eabi-gcc.exe',
     'C:\\Program Files\\GNU Arm Embedded Toolchain\\*\\bin\\arm-none-eabi-gcc.exe',
+    // STM32 VS Code Extension 自动下载的工具链 bundle
+    '%LOCALAPPDATA%\\stm32cube\\bundles\\gnu-tools-for-stm32\\*\\bin\\arm-none-eabi-gcc.exe',
     // STM32CubeIDE内置工具链
     'C:\\ST\\STM32CubeIDE_*\\STM32CubeIDE\\plugins\\com.st.stm32cube.ide.mcu.externaltools.gnu-tools-for-stm32.*\\tools\\bin\\arm-none-eabi-gcc.exe',
     // xPack GNU Arm Embedded GCC

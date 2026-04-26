@@ -11,6 +11,15 @@
     let liveWatchVariables = [];
     let autoSaveEnabled = true;
     let saveStateTimeout = null;
+    // 历史遗留：以下变量/函数被多处引用但从未定义，导致 IIFE 在加载时崩溃。
+    // 提供安全 fallback，让初始化流程能跑通。
+    let stateManager = null;
+    let isInitialized = false;
+    let formChangeListeners = new Map();
+    function createStateIndicator() {}
+    function updateStateIndicator() {}
+    function saveStateImmediately() {}
+    function saveStateDebounced() {}
 
     // DOM elements
     const elements = {
@@ -45,7 +54,9 @@
         armDownloadLinkContainer: document.getElementById('arm-download-link-container'),
         armToolchainInfo: document.getElementById('arm-toolchain-info'),
         armVersion: document.getElementById('arm-version'),
-        armTarget: document.getElementById('arm-target')
+        armTarget: document.getElementById('arm-target'),
+        deviceNameInput: document.getElementById('deviceName'),
+        deviceDetectedHint: document.getElementById('deviceDetectedHint')
     };
 
     // Localization functions
@@ -788,6 +799,35 @@
                 showMessage(message.error, 'error');
                 break;
 
+            case 'updateDetectedDevice':
+                console.log('[DeviceDetect] received', message);
+                if (message.device && elements.deviceNameInput) {
+                    const currentValue = elements.deviceNameInput.value.trim();
+                    // 仅在用户尚未输入时自动填入，避免覆盖手动值或恢复的状态
+                    if (!currentValue) {
+                        elements.deviceNameInput.value = message.device;
+                        if (typeof stateManager !== 'undefined' && stateManager && typeof isInitialized !== 'undefined' && isInitialized) {
+                            stateManager.updateState('deviceName', message.device, false);
+                        }
+                    }
+                    if (elements.deviceDetectedHint) {
+                        const tmpl = (typeof strings !== 'undefined' && strings.deviceDetectedHint) || 'Detected {0} from {1}';
+                        elements.deviceDetectedHint.textContent = tmpl
+                            .replace('{0}', message.device)
+                            .replace('{1}', message.source);
+                        elements.deviceDetectedHint.classList.remove('hidden');
+                        console.log('[DeviceDetect] hint shown:', elements.deviceDetectedHint.textContent);
+                    } else {
+                        console.warn('[DeviceDetect] hint element NOT FOUND in DOM');
+                    }
+                } else {
+                    console.warn('[DeviceDetect] message ignored, device or input missing', {
+                        device: message.device,
+                        hasInput: !!elements.deviceNameInput
+                    });
+                }
+                break;
+
             case 'updateArmToolchainPath':
                 const armPath = message.path;
                 const armInfo = message.info;
@@ -908,10 +948,14 @@
             liveWatchVariables = [...state.liveWatchVariables];
         }
         
-        // 恢复语言设置
-        if (state.language) {
+        // 恢复语言设置：同步到后端 localizationManager，否则 dropdown 显示与实际 strings 不一致
+        if (state.language && state.language !== currentLanguage) {
             currentLanguage = state.language;
             elements.languageSelect.value = state.language;
+            vscode.postMessage({
+                command: 'switchLanguage',
+                language: state.language
+            });
         }
         
         console.log('Form state restored from saved configuration');

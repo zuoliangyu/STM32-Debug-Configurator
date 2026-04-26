@@ -20,6 +20,7 @@ import { findOpenOCDPath, getOpenOCDConfigFiles } from './utils/openocd';
 import { checkOpenOCDEnvironment, showOpenOCDConfigurationWizard, showEnvironmentSetupHelp, validateOpenOCDConfiguration } from './utils/openocdEnvHelper';
 import { ensureCortexDebugInstalled, isCortexDebugInstalled } from './utils/cortex-debug';
 import { findArmToolchainPath, getArmToolchainInfo, validateArmToolchainPath, ToolchainInfo } from './utils/armToolchain';
+import { detectStm32Device } from './utils/deviceDetector';
 import { LocalizationManager, SupportedLanguage } from './localization/localizationManager';
 import { normalizePath } from './utils/pathUtils';
 import { ToolchainDetectionService, StateManager, ExtensionConfigurationState } from './services';
@@ -346,11 +347,31 @@ export function activate(context: vscode.ExtensionContext) {
                 version: envStatus.version,
                 suggestions: envStatus.suggestions
             });
-            currentPanel.webview.postMessage({ 
-                command: 'updateArmToolchainPath', 
+            currentPanel.webview.postMessage({
+                command: 'updateArmToolchainPath',
                 path: detectedArmToolchainPath,
-                info: armToolchainInfo 
+                info: armToolchainInfo
             });
+
+            // 扫描工作区检测 STM32 设备型号
+            try {
+                console.log('[DeviceDetect] starting workspace scan...');
+                const detected = await detectStm32Device();
+                console.log('[DeviceDetect] result:', detected);
+                if (detected) {
+                    currentPanel.webview.postMessage({
+                        command: 'updateDetectedDevice',
+                        device: detected.device,
+                        source: detected.source,
+                        sourceType: detected.sourceType
+                    });
+                    console.log('[DeviceDetect] posted updateDetectedDevice to webview');
+                } else {
+                    console.log('[DeviceDetect] no device detected in workspace');
+                }
+            } catch (error) {
+                console.warn('[DeviceDetect] auto-detection failed:', error);
+            }
 
             currentPanel.webview.onDidReceiveMessage(
                 async message => {

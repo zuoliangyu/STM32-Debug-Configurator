@@ -78,6 +78,7 @@ export const zh: LocalizedStrings = {
     
     // Placeholders and help text
     devicePlaceholder: "例如: STM32F407ZG",
+    deviceDetectedHint: "已从 {1} 自动识别为 {0}",
     svdPlaceholder: "例如: ${workspaceFolder}/STM32F407.svd",
     autoDetecting: "自动检测中...",
     autoDetectionFailed: "自动检测失败。请手动指定路径。",
