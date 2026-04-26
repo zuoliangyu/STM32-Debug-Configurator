@@ -6,7 +6,7 @@
     const vscode = acquireVsCodeApi();
 
     // State management
-    let currentLanguage = 'en';
+    let currentLanguage = 'zh';
     let strings = {};
     let liveWatchVariables = [];
     let autoSaveEnabled = true;

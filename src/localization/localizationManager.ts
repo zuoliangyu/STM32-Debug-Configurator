@@ -35,11 +35,11 @@ export class LocalizationManager {
     /** 单例实例 */
     private static instance: LocalizationManager;
     
-    /** 当前语言设置 */
-    private currentLanguage: SupportedLanguage = 'en';
-    
+    /** 当前语言设置（默认中文，可被 loadLanguage 覆盖） */
+    private currentLanguage: SupportedLanguage = 'zh';
+
     /** 当前语言的本地化字符串 */
-    private strings: LocalizedStrings = en;
+    private strings: LocalizedStrings = zh;
     
     /** VS Code扩展上下文 */
     private context: vscode.ExtensionContext;
@@ -161,14 +161,14 @@ export class LocalizationManager {
         const savedLanguage = this.context.globalState.get<SupportedLanguage>('stm32-configurator.language');
         if (savedLanguage && (savedLanguage === 'en' || savedLanguage === 'zh')) {
             this.switchLanguage(savedLanguage);
+            return;
+        }
+        // 默认中文；仅当 VS Code 本身是英文界面时才用英文，避免给英文用户硬塞中文
+        const locale = vscode.env.language || '';
+        if (locale.startsWith('en')) {
+            this.switchLanguage('en');
         } else {
-            // Auto-detect from VS Code locale
-            const locale = vscode.env.language;
-            if (locale.startsWith('zh')) {
-                this.switchLanguage('zh');
-            } else {
-                this.switchLanguage('en');
-            }
+            this.switchLanguage('zh');
         }
     }
     

@@ -6,6 +6,16 @@ STM32 Debug Configurator 扩展的所有重要变更都将记录在此文件中�
 此项目遵循 [语义化版本控制](https://semver.org/lang/zh-CN/)。
 
 
+## [1.0.1] - 2026-04-27
+
+### 改进 (Changed)
+- 🌏 **默认语言改为中文**：扩展首次安装时 webview UI 默认显示中文；如果 VS Code 本身是英文界面则自动切换为英文，避免硬塞中文。已经手动切换过的用户保留原选择
+- 📖 **Marketplace 详情页默认中文**：把仓库根目录的 `README.md` 切换为中文版（原英文版迁到 `README_en.md`），Marketplace 扩展页和 GitHub 仓库主页都默认显示中文文档
+
+### 修复 (Fixed)
+- 📝 修正 1.0.0 CHANGELOG / README 中错误列入了仅供开发用、未发布到 vsix 的内部条目（自定义 launch profile、watch 脚本、测试脚本），实际功能未受影响
+
+
 ## [1.0.0] - 2026-04-27
 
 正式版发布 🎉。本版本对配置生成体验做了大量自动化与 UI 重构，把"读 .ioc → 找工具链 → 选 cfg → 输出 launch.json"全链路从手动填表升级为一键完成。
@@ -20,9 +30,6 @@ STM32 Debug Configurator 扩展的所有重要变更都将记录在此文件中�
 - ✨ **interface.cfg 智能匹配**：默认按 `cmsis-dap.cfg → stlink.cfg → stlink-v2.cfg` 顺序选中
 - ✨ **SWD / JTAG 传输方式选择**：UI 下拉切换，影响 `interface` 字段和 `openOCDLaunchCommands` 里的 `transport select`
 - ✨ **gdbPath 自动写入**：`launch.json` 同时写入 `gdbPath`（基于 toolchain bin 推导，ST bundle 走可移植形式）
-- ✨ **干净开发环境 launch 配置**：`.vscode/launch.json` 新增 "Run Extension (Clean)"，禁用噪音扩展（CodeGeeX / CMake Tools / GitLens 等）保留 cortex-debug
-- ✨ **联合 watch 脚本**：`scripts/watch-all.js` 同时盯 TS 和 webview 资源，调试时改完直接重启 webview 即可，无需手动 compile
-- ✨ **测试脚本**：`test:device` / `test:arm` / `test:target` / `test:exec` 共 39 个独立运行的用例
 
 ### 改进 (Changed)
 - 🎨 **webview UI 完全重做**：12 列响应式 grid 布局，5 张卡片（项目 / 目标设备 / GDB Server / ARM 工具链 / 高级选项）替代原来的长竖条，每张卡左上角带 01–05 编号徽章；卡片化间距、统一 typography、native VS Code 颜色变量

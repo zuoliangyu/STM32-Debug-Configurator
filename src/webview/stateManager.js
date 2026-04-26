@@ -12,7 +12,7 @@ class StateManager {
         this.vscode = vscode;
         this.state = {
             // 基础配置
-            language: 'en',
+            language: 'zh',
             deviceName: '',
             servertype: 'openocd',
             elfSource: 'auto',
@@ -212,7 +212,7 @@ class StateManager {
      */
     getDefaultState() {
         return {
-            language: 'en',
+            language: 'zh',
             deviceName: '',
             servertype: 'openocd',
             elfSource: 'auto',
