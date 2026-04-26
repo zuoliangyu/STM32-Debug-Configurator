@@ -99,6 +99,10 @@
                 <button id="browse-arm-button" data-i18n="browseButton" title="Browse for ARM toolchain executable">Browse</button>
                 <button id="refresh-arm-button" data-i18n="scanButton" title="Re-scan for ARM toolchain in system PATH">Scan</button>
             </div>
+            <div class="form-group hidden" id="arm-toolchain-candidates-group" style="margin-top: 6px;">
+                <label for="armToolchainCandidates" data-i18n="armToolchainCandidates">Detected toolchains (pick to switch)</label>
+                <select id="armToolchainCandidates"></select>
+            </div>
             <div id="arm-download-link-container" class="hidden">
                 <small><span data-i18n="noArmToolchainFound">ARM Toolchain not found.</span> <a href="https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads" data-i18n="downloadArmToolchain">Download it here</a>.</small>
             </div>

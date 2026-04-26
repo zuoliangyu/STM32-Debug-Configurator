@@ -48,32 +48,48 @@ export function expandPath(pathStr: string): string[] {
 
 /**
  * 解析包含通配符的路径
- * 处理路径中的*通配符，返回匹配的真实路径
- * 
- * @param pathWithWildcard - 包含*通配符的路径
- * @returns 匹配的路径数组，按版本倒序排列
+ * 处理路径中的星号通配符，返回匹配的真实路径
+ *
+ * 仅处理第一个星号。星号必须出现在某一段路径里 (例如 dir/STAR/sub 或 dir/prefixSTAR/sub)。
+ * 多个星号串联或跨段时不展开。
+ *
+ * @param pathWithWildcard - 包含星号通配符的路径
+ * @returns 匹配的真实路径数组，按字符串倒序排列 (一般等同于"版本倒序")
  * @private
  */
 function resolveWildcardPath(pathWithWildcard: string): string[] {
     try {
-        const basePath = pathWithWildcard.substring(0, pathWithWildcard.indexOf('*'));
-        const pattern = pathWithWildcard.substring(pathWithWildcard.indexOf('*'));
-        const baseDir = path.dirname(basePath);
-        
-        if (fs.existsSync(baseDir)) {
-            const entries = fs.readdirSync(baseDir);
-            const matches: string[] = [];
-            
-            for (const entry of entries) {
-                const testPath = path.join(baseDir, entry, pattern.substring(1));
-                if (fs.existsSync(testPath)) {
-                    matches.push(testPath);
-                }
-            }
-            return matches.sort().reverse(); // 返回最新版本优先
+        const starIdx = pathWithWildcard.indexOf('*');
+        const beforeStar = pathWithWildcard.substring(0, starIdx);
+        const afterStar = pathWithWildcard.substring(starIdx + 1);
+
+        // 找到星号左侧最近的分隔符。分隔符左边是要扫描的父目录，右边是 entry 名前缀。
+        const lastSepIdx = Math.max(beforeStar.lastIndexOf('/'), beforeStar.lastIndexOf('\\'));
+        if (lastSepIdx < 0) {
+            return [];
         }
+        const baseDir = beforeStar.substring(0, lastSepIdx);
+        const namePrefix = beforeStar.substring(lastSepIdx + 1);
+
+        if (!baseDir || !fs.existsSync(baseDir)) {
+            return [];
+        }
+
+        const entries = fs.readdirSync(baseDir);
+        const matches: string[] = [];
+
+        for (const entry of entries) {
+            if (namePrefix && !entry.startsWith(namePrefix)) {
+                continue;
+            }
+            const testPath = path.join(baseDir, entry) + afterStar;
+            if (fs.existsSync(testPath)) {
+                matches.push(testPath);
+            }
+        }
+        return matches.sort().reverse();
     } catch (error) {
-        // Ignore glob expansion errors
+        // 忽略展开错误
     }
     return [];
 }

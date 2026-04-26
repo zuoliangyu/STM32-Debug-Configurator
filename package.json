@@ -231,7 +231,8 @@
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./ && copyfiles -u 1 \"src/webview/**/*\" out/",
-    "watch": "tsc -watch -p ./",
+    "watch": "node scripts/watch-all.js",
+    "watch:tsc-only": "tsc -watch -p ./",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",
     "test": "node ./out/test/runTest.js",
@@ -247,7 +248,8 @@
     "test:all": "npm run test:unit && npm run test:integration && npm run test:platform && npm run test:toolchain",
     "test:watch": "npm run compile && mocha ./out/test/**/*.test.js --watch",
     "test:coverage": "nyc npm run test:all",
-    "test:device": "npm run compile && node scripts/test-device-detector.js"
+    "test:device": "npm run compile && node scripts/test-device-detector.js",
+    "test:arm": "npm run compile && node scripts/test-arm-toolchain.js"
   },
   "devDependencies": {
     "@types/jsdom": "^21.1.6",

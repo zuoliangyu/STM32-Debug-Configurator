@@ -17,7 +17,7 @@ import * as path from 'path';
 import { exec } from 'child_process';
 import * as vscode from 'vscode';
 import { expandPath, normalizePath, isValidExecutablePath, buildExecutablePath } from './pathUtils';
-import { COMMON_ARM_TOOLCHAIN_PATHS } from './toolchainPaths';
+import { COMMON_ARM_TOOLCHAIN_PATHS, ST_BUNDLE_ARM_TOOLCHAIN_GLOB } from './toolchainPaths';
 
 /**
  * ARM工具链信息接口
@@ -125,7 +125,7 @@ function findInCommonPaths(): string | null {
     if (process.platform !== 'win32') {
         return null;
     }
-    
+
     for (const pathTemplate of COMMON_ARM_TOOLCHAIN_PATHS) {
         const expandedPaths = expandPath(pathTemplate);
         for (const testPath of expandedPaths) {
@@ -135,34 +135,193 @@ function findInCommonPaths(): string | null {
             }
         }
     }
-    
+
     return null;
+}
+
+/**
+ * 在 STM32 VS Code Extension bundle 目录里查找所有版本的工具链
+ * 多版本时按字符串倒序排列（13.3.1+st.8 < 13.3.1+st.9 < 14.3.1+st.2）
+ */
+function findAllInStBundle(): string[] {
+    if (process.platform !== 'win32') {
+        return [];
+    }
+    return expandPath(ST_BUNDLE_ARM_TOOLCHAIN_GLOB)
+        .map(normalizePath)
+        .filter(isValidExecutablePath)
+        .sort()
+        .reverse();
+}
+
+function findInStBundle(): string | null {
+    return findAllInStBundle()[0] ?? null;
+}
+
+function findAllInCommonPaths(): string[] {
+    if (process.platform !== 'win32') {
+        return [];
+    }
+    const out: string[] = [];
+    for (const pathTemplate of COMMON_ARM_TOOLCHAIN_PATHS) {
+        for (const expanded of expandPath(pathTemplate)) {
+            const normalized = normalizePath(expanded);
+            if (isValidExecutablePath(normalized) && !out.includes(normalized)) {
+                out.push(normalized);
+            }
+        }
+    }
+    return out;
+}
+
+/** 工具链候选项来源 */
+export type ToolchainSource = 'userConfig' | 'stBundle' | 'path' | 'common';
+
+export interface ToolchainCandidate {
+    /** GCC 可执行文件绝对路径 */
+    path: string;
+    /** 来源 */
+    source: ToolchainSource;
+    /** 版本（异步检测后填充，可能为 'Unknown'） */
+    version: string;
+    /** 用于 UI 显示的标签 */
+    label: string;
+}
+
+const SOURCE_LABEL: Record<ToolchainSource, string> = {
+    userConfig: 'cortex-debug 用户配置',
+    stBundle: 'STM32 官方扩展 bundle',
+    path: 'PATH 环境变量',
+    common: '常见安装路径'
+};
+
+/**
+ * 枚举所有检测到的 ARM 工具链候选项
+ * 与 findArmToolchainPath 不同——这个函数返回**所有**找到的工具链，
+ * 用于让用户在 UI 上选择，而不是只返回最高优先级的那一个。
+ *
+ * 顺序：ST bundle (多版本) → 用户配置 → PATH → 其他常见路径
+ * 同一个路径不会出现两次。
+ */
+export async function enumerateArmToolchains(): Promise<ToolchainCandidate[]> {
+    const seen = new Set<string>();
+    const out: ToolchainCandidate[] = [];
+
+    const add = (path: string, source: ToolchainSource) => {
+        const key = path.toLowerCase();
+        if (seen.has(key)) {
+            return;
+        }
+        seen.add(key);
+        out.push({ path, source, version: 'Unknown', label: SOURCE_LABEL[source] });
+    };
+
+    for (const p of findAllInStBundle()) {
+        add(p, 'stBundle');
+    }
+    const userPath = checkCortexDebugConfig();
+    if (userPath) {
+        add(userPath, 'userConfig');
+    }
+    const pathHit = await findInPath();
+    if (pathHit) {
+        add(pathHit, 'path');
+    }
+    for (const p of findAllInCommonPaths()) {
+        add(p, 'common');
+    }
+
+    // 取版本号填充 label
+    await Promise.all(
+        out.map(async (c) => {
+            try {
+                const info = await getArmToolchainInfo(c.path);
+                c.version = info.version;
+                c.label = `${SOURCE_LABEL[c.source]} · ${info.version}`;
+            } catch {
+                c.label = SOURCE_LABEL[c.source];
+            }
+        })
+    );
+
+    return out;
+}
+
+/**
+ * 判断给定路径是否位于 STM32 VS Code Extension 的 bundle 目录下
+ */
+export function isStBundleArmToolchainPath(toolchainPath: string): boolean {
+    const localAppData = process.env.LOCALAPPDATA;
+    if (!localAppData) {
+        return false;
+    }
+    const normalized = normalizePath(toolchainPath).toLowerCase();
+    const prefix = (normalizePath(localAppData) + '/stm32cube/bundles/').toLowerCase();
+    return normalized.startsWith(prefix);
+}
+
+/**
+ * 把绝对路径转成可移植的 ${env:LOCALAPPDATA}/... 形式
+ * 仅对 ST bundle 路径生效；非 bundle 路径原样返回
+ */
+export function toPortableArmToolchainPath(toolchainPath: string): string {
+    const localAppData = process.env.LOCALAPPDATA;
+    if (!localAppData || !isStBundleArmToolchainPath(toolchainPath)) {
+        return toolchainPath;
+    }
+    const normalized = normalizePath(toolchainPath);
+    const normalizedRoot = normalizePath(localAppData);
+    return '${env:LOCALAPPDATA}' + normalized.substring(normalizedRoot.length);
+}
+
+/**
+ * 根据用户填的 ARM 工具链路径推导出 arm-none-eabi-gdb 的完整路径
+ * 输入可以是 gcc.exe 的完整路径，也可以是 bin 目录
+ * 输出会先做 ST bundle → ${env:LOCALAPPDATA} 的可移植转换
+ */
+export function deriveGdbPath(toolchainPath: string): string {
+    const normalized = normalizePath(toolchainPath);
+    let binDir: string;
+    if (/arm-none-eabi-gcc(\.exe)?$/i.test(normalized)) {
+        binDir = path.dirname(normalized);
+    } else {
+        binDir = normalized.replace(/\/+$/, '');
+    }
+    const gdbExe = process.platform === 'win32' ? 'arm-none-eabi-gdb.exe' : 'arm-none-eabi-gdb';
+    return toPortableArmToolchainPath(`${binDir}/${gdbExe}`);
 }
 
 /**
  * 使用多种检测方法查找ARM工具链路径
  * 按以下顺序检测：
- * 1. VSCode Cortex-Debug扩展配置的路径
- * 2. PATH环境变量中的arm-none-eabi-gcc
- * 3. 常见安装路径（仅Windows）
- * 
+ * 1. VSCode Cortex-Debug扩展配置的路径（用户显式设置）
+ * 2. STM32 VS Code Extension 自动下载的 bundle（同机有 ST 官方扩展时优先采用）
+ * 3. PATH环境变量中的arm-none-eabi-gcc
+ * 4. 其他常见安装路径（仅Windows）
+ *
  * @returns ARM GCC可执行文件的完整路径，如果未找到则返回null
  * @since 0.2.3
  */
 export async function findArmToolchainPath(): Promise<string | null> {
-    // Method 1: Check cortex-debug configuration
+    // Method 1: 用户在 cortex-debug 里显式配置过的路径
     const configPath = checkCortexDebugConfig();
     if (configPath) {
         return configPath;
     }
-    
-    // Method 2: Try PATH environment variable
+
+    // Method 2: STM32 VS Code Extension bundle（最贴合 ST 官方推荐工具链）
+    const stBundlePath = findInStBundle();
+    if (stBundlePath) {
+        return stBundlePath;
+    }
+
+    // Method 3: PATH 环境变量
     const pathResult = await findInPath();
     if (pathResult) {
         return pathResult;
     }
-    
-    // Method 3: Check common installation paths (Windows only)
+
+    // Method 4: 其他常见安装路径
     return findInCommonPaths();
 }
 

@@ -61,37 +61,47 @@ function expandPath(pathStr: string): string[] {
     let expanded = pathStr.replace(/%([^%]+)%/g, (_, varName) => {
         return process.env[varName] || '';
     });
-    
+
     // Handle USERPROFILE specifically
     expanded = expanded.replace(/\$\{USERPROFILE\}/g, os.homedir());
     expanded = expanded.replace(/\$\{LOCALAPPDATA\}/g, process.env.LOCALAPPDATA || '');
-    
-    // If path contains wildcards, try to resolve them
-    if (expanded.includes('*')) {
-        try {
-            const basePath = expanded.substring(0, expanded.indexOf('*'));
-            const pattern = expanded.substring(expanded.indexOf('*'));
-            const baseDir = path.dirname(basePath);
-            
-            if (fs.existsSync(baseDir)) {
-                const entries = fs.readdirSync(baseDir);
-                const matches: string[] = [];
-                
-                for (const entry of entries) {
-                    const testPath = path.join(baseDir, entry, pattern.substring(1));
-                    if (fs.existsSync(testPath)) {
-                        matches.push(testPath);
-                    }
-                }
-                return matches;
-            }
-        } catch (error) {
-            // Ignore glob expansion errors
-        }
-        return [];
+
+    if (!expanded.includes('*')) {
+        return [expanded];
     }
-    
-    return [expanded];
+
+    try {
+        const starIdx = expanded.indexOf('*');
+        const beforeStar = expanded.substring(0, starIdx);
+        const afterStar = expanded.substring(starIdx + 1);
+
+        const lastSepIdx = Math.max(beforeStar.lastIndexOf('/'), beforeStar.lastIndexOf('\\'));
+        if (lastSepIdx < 0) {
+            return [];
+        }
+        const baseDir = beforeStar.substring(0, lastSepIdx);
+        const namePrefix = beforeStar.substring(lastSepIdx + 1);
+
+        if (!baseDir || !fs.existsSync(baseDir)) {
+            return [];
+        }
+
+        const entries = fs.readdirSync(baseDir);
+        const matches: string[] = [];
+        for (const entry of entries) {
+            if (namePrefix && !entry.startsWith(namePrefix)) {
+                continue;
+            }
+            const testPath = path.join(baseDir, entry) + afterStar;
+            if (fs.existsSync(testPath)) {
+                matches.push(testPath);
+            }
+        }
+        return matches.sort().reverse();
+    } catch (error) {
+        // Ignore glob expansion errors
+    }
+    return [];
 }
 
 /**

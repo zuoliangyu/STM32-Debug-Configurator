@@ -56,7 +56,9 @@
         armVersion: document.getElementById('arm-version'),
         armTarget: document.getElementById('arm-target'),
         deviceNameInput: document.getElementById('deviceName'),
-        deviceDetectedHint: document.getElementById('deviceDetectedHint')
+        deviceDetectedHint: document.getElementById('deviceDetectedHint'),
+        armToolchainCandidatesGroup: document.getElementById('arm-toolchain-candidates-group'),
+        armToolchainCandidatesSelect: document.getElementById('armToolchainCandidates')
     };
 
     // Localization functions
@@ -364,6 +366,7 @@
     // Configuration and file handling
     function requestCFGFiles() {
         const path = elements.openocdPathInput.value;
+        console.log('[CFG] requestCFGFiles called, openocd path:', path);
         if (path) {
             vscode.postMessage({ command: 'getCFGFiles', path: path });
         }
@@ -529,6 +532,17 @@
 
         // OpenOCD path handling
         elements.openocdPathInput.addEventListener('blur', requestCFGFiles);
+
+        // ARM 工具链下拉切换 → 同步到 input + 触发版本/路径刷新
+        if (elements.armToolchainCandidatesSelect) {
+            elements.armToolchainCandidatesSelect.addEventListener('change', (e) => {
+                const picked = e.target.value;
+                if (picked && elements.armToolchainPathInput) {
+                    elements.armToolchainPathInput.value = picked;
+                    vscode.postMessage({ command: 'selectArmToolchain', path: picked });
+                }
+            });
+        }
 
         // UI visibility controls
         elements.servertypeSelect.addEventListener('change', toggleOpenOCDPathVisibility);
@@ -766,6 +780,7 @@
                 break;
 
             case 'updateCFGLists':
+                console.log('[CFG] received updateCFGLists, interfaces:', message.data?.interfaces?.length, 'targets:', message.data?.targets?.length);
                 populateDropdown(elements.interfaceFileSelect, message.data.interfaces);
                 populateDropdown(elements.targetFileSelect, message.data.targets);
                 break;
@@ -825,6 +840,34 @@
                         device: message.device,
                         hasInput: !!elements.deviceNameInput
                     });
+                }
+                break;
+
+            case 'updateArmToolchainCandidates':
+                if (elements.armToolchainCandidatesSelect && elements.armToolchainCandidatesGroup) {
+                    const candidates = Array.isArray(message.candidates) ? message.candidates : [];
+                    const select = elements.armToolchainCandidatesSelect;
+                    select.innerHTML = '';
+                    candidates.forEach((c) => {
+                        const opt = document.createElement('option');
+                        opt.value = c.path;
+                        opt.textContent = `${c.label} — ${c.path}`;
+                        select.appendChild(opt);
+                    });
+                    if (candidates.length > 1) {
+                        elements.armToolchainCandidatesGroup.classList.remove('hidden');
+                        // 同步当前选中：与 input 框一致
+                        if (elements.armToolchainPathInput) {
+                            const cur = elements.armToolchainPathInput.value.trim();
+                            const matched = candidates.find((c) => c.path.toLowerCase() === cur.toLowerCase());
+                            if (matched) {
+                                select.value = matched.path;
+                            }
+                        }
+                    } else {
+                        elements.armToolchainCandidatesGroup.classList.add('hidden');
+                    }
+                    console.log('[ArmToolchain] candidates:', candidates);
                 }
                 break;
 

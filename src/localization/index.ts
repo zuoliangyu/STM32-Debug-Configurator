@@ -125,6 +125,8 @@ export interface LocalizedStrings {
     devicePlaceholder: string;
     /** 自动检测到设备型号的提示 */
     deviceDetectedHint: string;
+    /** 工具链候选下拉框标签 */
+    armToolchainCandidates: string;
     /** SVD文件占位符 */
     svdPlaceholder: string;
     /** 自动检测中 */

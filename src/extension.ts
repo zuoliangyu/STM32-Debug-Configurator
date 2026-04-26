@@ -19,7 +19,7 @@ import { STM32TreeDataProvider, DebugConfiguration } from './providers';
 import { findOpenOCDPath, getOpenOCDConfigFiles } from './utils/openocd';
 import { checkOpenOCDEnvironment, showOpenOCDConfigurationWizard, showEnvironmentSetupHelp, validateOpenOCDConfiguration } from './utils/openocdEnvHelper';
 import { ensureCortexDebugInstalled, isCortexDebugInstalled } from './utils/cortex-debug';
-import { findArmToolchainPath, getArmToolchainInfo, validateArmToolchainPath, ToolchainInfo } from './utils/armToolchain';
+import { findArmToolchainPath, getArmToolchainInfo, validateArmToolchainPath, ToolchainInfo, toPortableArmToolchainPath, enumerateArmToolchains, deriveGdbPath } from './utils/armToolchain';
 import { detectStm32Device } from './utils/deviceDetector';
 import { LocalizationManager, SupportedLanguage } from './localization/localizationManager';
 import { normalizePath } from './utils/pathUtils';
@@ -353,6 +353,17 @@ export function activate(context: vscode.ExtensionContext) {
                 info: armToolchainInfo
             });
 
+            // 枚举所有候选工具链，让 webview 提供下拉选择
+            try {
+                const candidates = await enumerateArmToolchains();
+                currentPanel.webview.postMessage({
+                    command: 'updateArmToolchainCandidates',
+                    candidates
+                });
+            } catch (error) {
+                console.warn('Failed to enumerate ARM toolchains:', error);
+            }
+
             // 扫描工作区检测 STM32 设备型号
             try {
                 console.log('[DeviceDetect] starting workspace scan...');
@@ -429,7 +440,9 @@ export function activate(context: vscode.ExtensionContext) {
                             return;
 
                         case 'getCFGFiles':
+                            console.log('[CFG] getCFGFiles requested for path:', message.path);
                             const cfgFiles = await getOpenOCDConfigFiles(message.path);
+                            console.log('[CFG] resolved interfaces:', cfgFiles.interfaces.length, 'targets:', cfgFiles.targets.length);
                             currentPanel?.webview.postMessage({ command: 'updateCFGLists', data: cfgFiles });
                             return;
 
@@ -500,13 +513,24 @@ export function activate(context: vscode.ExtensionContext) {
                             try {
                                 const newPath = await findArmToolchainPath();
                                 detectedArmToolchainPath = newPath;
-                                
+
+                                // 同时刷新候选列表
+                                try {
+                                    const candidates = await enumerateArmToolchains();
+                                    currentPanel?.webview.postMessage({
+                                        command: 'updateArmToolchainCandidates',
+                                        candidates
+                                    });
+                                } catch (e) {
+                                    console.warn('Failed to enumerate ARM toolchains on refresh:', e);
+                                }
+
                                 if (newPath) {
                                     armToolchainInfo = await getArmToolchainInfo(newPath);
-                                    currentPanel?.webview.postMessage({ 
-                                        command: 'updateArmToolchainPath', 
+                                    currentPanel?.webview.postMessage({
+                                        command: 'updateArmToolchainPath',
                                         path: newPath,
-                                        info: armToolchainInfo 
+                                        info: armToolchainInfo
                                     });
                                     vscode.window.showInformationMessage(`ARM toolchain detected: ${armToolchainInfo.version} at ${newPath}`);
                                 } else {
@@ -532,6 +556,23 @@ export function activate(context: vscode.ExtensionContext) {
                                     path: null,
                                     info: null 
                                 });
+                            }
+                            return;
+
+                        case 'selectArmToolchain':
+                            try {
+                                if (typeof message.path === 'string' && message.path.trim()) {
+                                    const picked = message.path;
+                                    detectedArmToolchainPath = picked;
+                                    armToolchainInfo = await getArmToolchainInfo(picked);
+                                    currentPanel?.webview.postMessage({
+                                        command: 'updateArmToolchainPath',
+                                        path: picked,
+                                        info: armToolchainInfo
+                                    });
+                                }
+                            } catch (error) {
+                                console.warn('Failed to apply selected ARM toolchain:', error);
                             }
                             return;
 
@@ -719,12 +760,15 @@ async function generateConfiguration(data: any) {
     if (data.armToolchainPath && data.armToolchainPath.trim() !== '') {
         try {
             const cortexDebugConfig = vscode.workspace.getConfiguration('cortex-debug');
-            // 标准化ARM工具链路径，将反斜杠转换为正斜杠
+            // 标准化ARM工具链路径，将反斜杠转换为正斜杠；ST bundle 路径转成 ${env:LOCALAPPDATA}/... 形式
             const normalizedArmToolchainPath = normalizePath(data.armToolchainPath);
-            await cortexDebugConfig.update('armToolchainPath', normalizedArmToolchainPath, vscode.ConfigurationTarget.Global);
-            newConfig.armToolchainPath = normalizedArmToolchainPath;
-            console.log(`Cortex-Debug 'armToolchainPath' has been set to: ${normalizedArmToolchainPath}`);
-        } catch (e) { 
+            const portableArmToolchainPath = toPortableArmToolchainPath(normalizedArmToolchainPath);
+            await cortexDebugConfig.update('armToolchainPath', portableArmToolchainPath, vscode.ConfigurationTarget.Global);
+            newConfig.armToolchainPath = portableArmToolchainPath;
+            newConfig.gdbPath = deriveGdbPath(normalizedArmToolchainPath);
+            console.log(`Cortex-Debug 'armToolchainPath' has been set to: ${portableArmToolchainPath}`);
+            console.log(`gdbPath set to: ${newConfig.gdbPath}`);
+        } catch (e) {
             console.warn(`Failed to set Cortex-Debug 'armToolchainPath'. Error: ${e}`);
         }
     } else if (detectedArmToolchainPath) {
@@ -732,7 +776,8 @@ async function generateConfiguration(data: any) {
         try {
             const validation = await validateArmToolchainPath(detectedArmToolchainPath);
             if (validation.isValid && validation.toolchainInfo) {
-                newConfig.armToolchainPath = validation.toolchainInfo.rootPath;
+                newConfig.armToolchainPath = toPortableArmToolchainPath(validation.toolchainInfo.rootPath);
+                newConfig.gdbPath = deriveGdbPath(validation.toolchainInfo.rootPath);
             }
         } catch (error) {
             console.warn('Failed to validate detected ARM toolchain path:', error);
