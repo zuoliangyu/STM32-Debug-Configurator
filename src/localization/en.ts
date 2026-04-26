@@ -78,6 +78,7 @@ export const en: LocalizedStrings = {
     devicePlaceholder: "e.g., STM32F407ZG",
     deviceDetectedHint: "Auto-detected {0} from {1}",
     armToolchainCandidates: "Detected toolchains (pick one to switch)",
+    transportInterface: "Transport (SWD / JTAG)",
     svdPlaceholder: "e.g., ${workspaceFolder}/STM32F407.svd",
     autoDetecting: "Auto-detecting...",
     autoDetectionFailed: "Auto-detection failed. Please specify the path manually.",

@@ -127,6 +127,8 @@ export interface LocalizedStrings {
     deviceDetectedHint: string;
     /** 工具链候选下拉框标签 */
     armToolchainCandidates: string;
+    /** 传输方式（SWD/JTAG）下拉框标签 */
+    transportInterface: string;
     /** SVD文件占位符 */
     svdPlaceholder: string;
     /** 自动检测中 */

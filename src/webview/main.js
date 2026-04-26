@@ -20,6 +20,7 @@
     function updateStateIndicator() {}
     function saveStateImmediately() {}
     function saveStateDebounced() {}
+    function validateGenerationData() { return { isValid: true, errors: [] }; }
 
     // DOM elements
     const elements = {
@@ -368,8 +369,11 @@
     // 智能匹配：根据设备型号推断 OpenOCD target.cfg
     let lastDetectedDevice = null;
     let lastLoadedCfgs = { interfaces: [], targets: [] };
-    // 用户是否手动改过 target 下拉。populateDropdown 是程序填充，不应触发 change 事件 → 此 flag 保持 false
+    // 用户是否手动改过下拉。populateDropdown 是程序填充，不应触发 change 事件 → 这两个 flag 保持 false
     let targetUserPicked = false;
+    let interfaceUserPicked = false;
+    // 默认接口（按用户偏好优先级）。cmsis-dap 在 STM32 调试器里覆盖最广（DAP-Link / ST-Link V3 / J-Link CMSIS-DAP 模式都支持）
+    const PREFERRED_INTERFACES = ['cmsis-dap.cfg', 'stlink.cfg', 'stlink-v2.cfg'];
 
     function inferTargetCfg(deviceName, availableTargets) {
         if (!deviceName || !Array.isArray(availableTargets) || availableTargets.length === 0) {
@@ -412,6 +416,22 @@
         } else {
             console.log('[SmartFill] no target match for device', lastDetectedDevice);
         }
+    }
+
+    function trySmartFillInterface() {
+        if (!lastLoadedCfgs.interfaces.length || !elements.interfaceFileSelect || interfaceUserPicked) {
+            return;
+        }
+        const lookup = new Map(lastLoadedCfgs.interfaces.map((i) => [i.toLowerCase(), i]));
+        for (const pref of PREFERRED_INTERFACES) {
+            const hit = lookup.get(pref);
+            if (hit) {
+                elements.interfaceFileSelect.value = hit;
+                console.log('[SmartFill] interface auto-filled to', hit);
+                return;
+            }
+        }
+        console.log('[SmartFill] no preferred interface match');
     }
 
     // Configuration and file handling
@@ -601,6 +621,13 @@
         if (elements.targetFileSelect) {
             elements.targetFileSelect.addEventListener('change', () => {
                 targetUserPicked = true;
+            });
+        }
+
+        // interface dropdown 同上
+        if (elements.interfaceFileSelect) {
+            elements.interfaceFileSelect.addEventListener('change', () => {
+                interfaceUserPicked = true;
             });
         }
 
@@ -859,6 +886,7 @@
                     targets: message.data?.targets || []
                 };
                 trySmartFillTarget();
+                trySmartFillInterface();
                 break;
 
             case 'updateLanguage':
@@ -1187,6 +1215,7 @@
             targetFile: elements.targetFileSelect.value,
             svdFilePath: document.getElementById('svdFilePath').value,
             adapterSpeed: document.getElementById('adapterSpeed').value,
+            transportInterface: document.getElementById('transportInterface')?.value || 'swd',
             liveWatch: liveWatchData,
             armToolchainPath: elements.armToolchainPathInput.value
         };

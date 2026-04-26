@@ -19,7 +19,7 @@ import { STM32TreeDataProvider, DebugConfiguration } from './providers';
 import { findOpenOCDPath, getOpenOCDConfigFiles } from './utils/openocd';
 import { checkOpenOCDEnvironment, showOpenOCDConfigurationWizard, showEnvironmentSetupHelp, validateOpenOCDConfiguration } from './utils/openocdEnvHelper';
 import { ensureCortexDebugInstalled, isCortexDebugInstalled } from './utils/cortex-debug';
-import { findArmToolchainPath, getArmToolchainInfo, validateArmToolchainPath, ToolchainInfo, toPortableArmToolchainPath, enumerateArmToolchains, deriveGdbPath } from './utils/armToolchain';
+import { findArmToolchainPath, getArmToolchainInfo, validateArmToolchainPath, ToolchainInfo, toPortableArmToolchainPath, enumerateArmToolchains, deriveGdbPath, toolchainBinDir } from './utils/armToolchain';
 import { detectStm32Device } from './utils/deviceDetector';
 import { LocalizationManager, SupportedLanguage } from './localization/localizationManager';
 import { normalizePath } from './utils/pathUtils';
@@ -768,32 +768,41 @@ async function generateConfiguration(data: any) {
         } catch (e) { vscode.window.showErrorMessage(`Failed to set Cortex-Debug 'openocdPath'. Error: ${e}`); }
     }
     const newConfig: any = {
-        "name": `Debug (${data.deviceName})`, "type": "cortex-debug", "request": "launch",
-        "servertype": data.servertype, "cwd": "${workspaceFolder}", "executable": data.executablePath,
-        "device": data.deviceName, "svdFile": data.svdFilePath, "runToEntryPoint": "main"
+        "name": `Debug (${data.deviceName})`,
+        "type": "cortex-debug",
+        "request": "launch",
+        "servertype": data.servertype,
+        "cwd": "${workspaceFolder}",
+        "executable": data.executablePath,
+        "device": data.deviceName,
+        "runToEntryPoint": "main",
+        "showDevDebugOutput": "none"
     };
-    
+    // 仅在用户填了 SVD 时写入字段，避免空字符串
+    if (data.svdFilePath && data.svdFilePath.trim() !== '') {
+        newConfig.svdFile = data.svdFilePath;
+    }
+
     // Add ARM toolchain configuration if available
+    // cortex-debug 的 armToolchainPath 字段期望 bin 目录，不是 gcc.exe 路径
     if (data.armToolchainPath && data.armToolchainPath.trim() !== '') {
         try {
             const cortexDebugConfig = vscode.workspace.getConfiguration('cortex-debug');
-            // 标准化ARM工具链路径，将反斜杠转换为正斜杠；ST bundle 路径转成 ${env:LOCALAPPDATA}/... 形式
             const normalizedArmToolchainPath = normalizePath(data.armToolchainPath);
-            const portableArmToolchainPath = toPortableArmToolchainPath(normalizedArmToolchainPath);
-            await cortexDebugConfig.update('armToolchainPath', portableArmToolchainPath, vscode.ConfigurationTarget.Global);
-            newConfig.armToolchainPath = portableArmToolchainPath;
+            const portableBinDir = toolchainBinDir(normalizedArmToolchainPath);
+            await cortexDebugConfig.update('armToolchainPath', portableBinDir, vscode.ConfigurationTarget.Global);
+            newConfig.armToolchainPath = portableBinDir;
             newConfig.gdbPath = deriveGdbPath(normalizedArmToolchainPath);
-            console.log(`Cortex-Debug 'armToolchainPath' has been set to: ${portableArmToolchainPath}`);
+            console.log(`Cortex-Debug 'armToolchainPath' has been set to: ${portableBinDir}`);
             console.log(`gdbPath set to: ${newConfig.gdbPath}`);
         } catch (e) {
             console.warn(`Failed to set Cortex-Debug 'armToolchainPath'. Error: ${e}`);
         }
     } else if (detectedArmToolchainPath) {
-        // Use detected ARM toolchain path as fallback
         try {
             const validation = await validateArmToolchainPath(detectedArmToolchainPath);
             if (validation.isValid && validation.toolchainInfo) {
-                newConfig.armToolchainPath = toPortableArmToolchainPath(validation.toolchainInfo.rootPath);
+                newConfig.armToolchainPath = toolchainBinDir(validation.toolchainInfo.rootPath);
                 newConfig.gdbPath = deriveGdbPath(validation.toolchainInfo.rootPath);
             }
         } catch (error) {
@@ -825,8 +834,14 @@ async function generateConfiguration(data: any) {
         }
     }
     if (data.servertype === 'openocd') {
-        newConfig.configFiles = [`interface/${data.interfaceFile}`, `target/${data.targetFile}`]; // <-- 修正：加上目录前缀
-        newConfig.openOCDLaunchCommands = [`adapter speed ${data.adapterSpeed}`];
+        const transport = (data.transportInterface === 'jtag' ? 'jtag' : 'swd');
+        newConfig.serverpath = 'openocd';
+        newConfig.interface = transport;
+        newConfig.configFiles = [`interface/${data.interfaceFile}`, `target/${data.targetFile}`];
+        newConfig.openOCDLaunchCommands = [
+            `transport select ${transport}`,
+            `adapter speed ${data.adapterSpeed}`
+        ];
     } else if (data.servertype === 'pyocd') { newConfig.targetId = data.targetFile; }
     const workspaceFolder = vscode.workspace.workspaceFolders[0].uri;
     const dotVscodeFolder = vscode.Uri.joinPath(workspaceFolder, '.vscode');

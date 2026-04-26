@@ -275,6 +275,24 @@ export function toPortableArmToolchainPath(toolchainPath: string): string {
 }
 
 /**
+ * 把工具链路径规范化成 bin 目录形式
+ * 输入可以是 .../bin/arm-none-eabi-gcc.exe 或 .../bin
+ * 输出始终是 bin 目录，并对 ST bundle 走 ${env:LOCALAPPDATA} 可移植转换
+ *
+ * cortex-debug 的 armToolchainPath 字段期望的是 bin 目录而不是 gcc.exe 路径
+ */
+export function toolchainBinDir(toolchainPath: string): string {
+    const normalized = normalizePath(toolchainPath);
+    let binDir: string;
+    if (/\/arm-none-eabi-gcc(\.exe)?$/i.test(normalized)) {
+        binDir = path.dirname(normalized);
+    } else {
+        binDir = normalized.replace(/\/+$/, '');
+    }
+    return toPortableArmToolchainPath(binDir);
+}
+
+/**
  * 根据用户填的 ARM 工具链路径推导出 arm-none-eabi-gdb 的完整路径
  * 输入可以是 gcc.exe 的完整路径，也可以是 bin 目录
  * 输出会先做 ST bundle → ${env:LOCALAPPDATA} 的可移植转换
