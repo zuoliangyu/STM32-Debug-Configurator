@@ -36,7 +36,14 @@ jobs:
     
     - name: Compile TypeScript
       run: npm run compile
-    
+
+    - name: Run unit tests (device / target / arm / exec)
+      run: |
+        node scripts/test-device-detector.js
+        node scripts/test-target-inference.js
+        node scripts/test-arm-toolchain.js
+        node scripts/test-executable-detector.js
+
     - name: Package Extension (Dry Run)
       run: |
         npm install -g @vscode/vsce

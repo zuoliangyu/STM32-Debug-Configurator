@@ -2,22 +2,39 @@
 .vscode-test/**
 src/**
 .gitignore
+.gitattributes
 .yarnrc
 vsc-extension-quickstart.md
 **/tsconfig.json
+**/tsconfig.tsbuildinfo
 **/eslint.config.mjs
 **/*.map
 **/*.ts
 **/.vscode-test.*
+.editorconfig
+.prettierrc*
 
 # 开发文件和目录
 .claude/**
+.spec-workflow/**
 docs/**
+scripts/**
 *.vsix
 node_modules/**
 coverage/**
 .nyc_output/**
+
+# 编译产物里的测试 / 示例 / demo（vsix 不需要）
 out/test/**
+out/demo/**
+out/**/*.test.js
+out/**/*.test.js.map
+out/**/*.bak
+out/**/usage-example.js
+out/**/usage-example.js.map
+out/**/integration-example.js
+out/**/integration-example.js.map
+
 *.log
 .env
 .env.*
@@ -28,3 +45,8 @@ nyc.config.js
 # GitHub Actions 和 Git 文件
 .github/**
 .git/**
+
+# 包管理 lock（vsix 不需要，节省体积）
+package-lock.json
+yarn.lock
+pnpm-lock.yaml

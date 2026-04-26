@@ -13,7 +13,10 @@ jobs:
     
     permissions:
       contents: write
-      
+
+    env:
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -34,6 +37,13 @@ jobs:
       - name: Compile TypeScript
         run: npm run compile
 
+      - name: Run unit tests
+        run: |
+          node scripts/test-device-detector.js
+          node scripts/test-target-inference.js
+          node scripts/test-arm-toolchain.js
+          node scripts/test-executable-detector.js
+
       - name: Install vsce
         run: npm install -g @vscode/vsce
 
@@ -44,6 +54,25 @@ jobs:
         id: get_version
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
+      - name: Extract release notes from CHANGELOG
+        id: changelog
+        run: |
+          # 从 CHANGELOG.md 抽出当前版本的 section（## [x.y.z] ... 直到下一个 ## [）
+          ver="${GITHUB_REF#refs/tags/v}"
+          notes=$(awk -v ver="$ver" '
+            $0 ~ "^## \\[" ver "\\]" { flag=1; next }
+            flag && /^## \[/ { exit }
+            flag { print }
+          ' CHANGELOG.md)
+          if [ -z "$notes" ]; then
+            notes="See CHANGELOG.md for details."
+          fi
+          {
+            echo 'NOTES<<__EOF_NOTES__'
+            echo "$notes"
+            echo '__EOF_NOTES__'
+          } >> $GITHUB_OUTPUT
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -52,17 +81,23 @@ jobs:
           files: '*.vsix'
           body: |
             ## STM32 Debug Configurator ${{ steps.get_version.outputs.VERSION }}
-            
-            ### 📦 下载
-            下载 `.vsix` 文件并在 VS Code 中手动安装，或直接从 [扩展商店](https://marketplace.visualstudio.com/items?itemName=zuolan.stm32-configurator-by-zuolan) 安装。
-            
-            ### 🔧 安装方式
-            1. **扩展商店**：在 VS Code 中搜索 "STM32 Debug Configurator"
-            2. **手动安装**：下载 `.vsix` 文件，运行 `code --install-extension stm32-configurator-by-zuolan-*.vsix`
-            
-            ### 📝 更新日志
-            查看完整更新内容请参考项目 README。
+
+            ${{ steps.changelog.outputs.NOTES }}
+
+            ---
+
+            **安装方式**
+            - Marketplace：在 VS Code 扩展面板搜索 `STM32 Debug Configurator by zuolan`
+            - 命令行：`code --install-extension zuolan.stm32-configurator-by-zuolan`
+            - 离线：下载下方 `.vsix` 后 `code --install-extension <file>.vsix`
+
+            完整变更见 [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md)。
           draft: false
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish to VS Code Marketplace
+        # 没配 VSCE_PAT secret 时跳过，只做 GitHub Release
+        if: ${{ env.VSCE_PAT != '' }}
+        run: vsce publish --pat "$VSCE_PAT" --packagePath $(ls *.vsix | head -n1)
