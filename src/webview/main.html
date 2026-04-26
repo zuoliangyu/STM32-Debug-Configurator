@@ -11,168 +11,226 @@
 </head>
 
 <body>
-    <div class="container">
-        <!-- Language Switch -->
-        <div class="language-switch">
-            <label for="language-select" data-i18n="language">Language</label>
-            <select id="language-select">
-                <option value="en">English</option>
-                <option value="zh">中文</option>
-            </select>
-        </div>
-        
-        <h1 data-i18n="title">STM32 Debug Configuration</h1>
-        <p data-i18n="subtitle">Fill in the details below to generate a `launch.json` configuration for Cortex-Debug.</p>
-
-        <div class="form-group">
-            <label for="executablePath" data-i18n="executable">Executable (.elf / .axf / .bin / .hex)</label>
-            <div class="form-group hidden" id="executable-candidates-group" style="margin-bottom: 6px;">
-                <select id="executableCandidates"></select>
+    <div class="app">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="app-header-text">
+                <h1 data-i18n="title">STM32 Debug Configuration</h1>
+                <p class="app-subtitle" data-i18n="subtitle">Generate a launch.json configuration for Cortex-Debug.</p>
             </div>
-            <input type="text" id="executablePath" data-i18n-placeholder="executablePlaceholder" placeholder="${workspaceFolder}/build/Debug/project.elf">
-            <small id="executableDetectedHint" class="detection-hint hidden"></small>
-            <!-- 保留旧的 radio 隐藏占位，避免 main.js 里 elfSourceRadios 引用爆 ReferenceError -->
-            <div class="hidden">
-                <input type="radio" name="elfSource" value="auto" checked>
-                <input type="radio" name="elfSource" value="manual">
-            </div>
-        </div>
-        <div class="form-group">
-            <label for="deviceName" data-i18n="deviceName">Device Name (e.g., STM32F407ZG)</label>
-            <input type="text" id="deviceName" data-i18n-placeholder="devicePlaceholder">
-            <small id="deviceDetectedHint" class="detection-hint hidden"></small>
-        </div>
-
-        <div class="form-group">
-            <label for="servertype" data-i18n="gdbServer">GDB Server</label>
-            <select id="servertype">
-                <option value="openocd" selected>OpenOCD</option>
-                <option value="pyocd">pyOCD</option>
-                <option value="jlink">J-Link</option>
-                <option value="stlink">ST-Link GDB Server</option>
-                <option value="stutil">ST-Util</option>
-            </select>
-        </div>
-
-        <div id="openocd-options">
-            <div class="form-group" id="openocd-path-group">
-                <label for="openocdPath" data-i18n="openocdPath">OpenOCD Path (Optional)</label>
-                <div class="input-group">
-                    <input type="text" id="openocdPath" data-i18n-placeholder="autoDetecting">
-                    <button id="browse-button" data-i18n="browseButton" title="Browse for OpenOCD executable">Browse</button>
-                    <button id="refresh-button" data-i18n="scanButton" title="Re-scan for OpenOCD in system PATH">Scan</button>
-                    <button id="env-setup-button" data-i18n="envSetupButton" title="Environment variable setup guide">ENV Setup</button>
-                </div>
-                <div id="openocd-status" class="status-info">
-                    <!-- OpenOCD status will be dynamically updated here -->
-                </div>
-                <div id="download-link-container" class="hidden">
-                    <small><span data-i18n="noOpenocdFound">OpenOCD not found.</span> 
-                    <a href="#" id="env-guide-link" data-i18n="viewEnvGuide">View environment setup guide</a> | 
-                    <a href="https://github.com/xpack-dev-tools/openocd-xpack/releases" data-i18n="downloadOpenocd">Download OpenOCD</a></small>
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label for="interfaceFile" data-i18n="interfaceFile">Interface File</label>
-                <div class="searchable-select">
-                    <div class="search-input-wrapper">
-                        <input type="text" id="interfaceFileSearch" class="search-input" data-i18n-placeholder="searchInterface" placeholder="Search interface files...">
-                        <button type="button" class="search-clear-btn" id="interfaceFileSearchClear" title="Clear search">×</button>
-                    </div>
-                    <select id="interfaceFile" class="searchable-dropdown">
-                        <option value="" disabled selected data-i18n="providePath">Provide valid OpenOCD path to populate...</option>
-                    </select>
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label for="transportInterface" data-i18n="transportInterface">Transport</label>
-                <select id="transportInterface">
-                    <option value="swd" selected>SWD</option>
-                    <option value="jtag">JTAG</option>
+            <div class="lang-switch">
+                <label for="language-select" data-i18n="language">Language</label>
+                <select id="language-select">
+                    <option value="en">English</option>
+                    <option value="zh">中文</option>
                 </select>
             </div>
+        </header>
 
-            <div class="form-group">
-                <label for="adapterSpeed" data-i18n="adapterSpeed">Adapter Speed (kHz)</label>
-                <input type="number" id="adapterSpeed" value="4000" placeholder="e.g., 4000">
-            </div>
-        </div>
+        <!-- Main grid -->
+        <main class="grid">
 
-        <!-- ARM Toolchain Configuration Section -->
-        <div class="form-group" id="arm-toolchain-section">
-            <label for="armToolchainPath" data-i18n="armToolchainPath">ARM Toolchain Path (Optional)</label>
-            <div class="input-group">
-                <input type="text" id="armToolchainPath" data-i18n-placeholder="autoDetecting">
-                <button id="browse-arm-button" data-i18n="browseButton" title="Browse for ARM toolchain executable">Browse</button>
-                <button id="refresh-arm-button" data-i18n="scanButton" title="Re-scan for ARM toolchain in system PATH">Scan</button>
-            </div>
-            <div class="form-group hidden" id="arm-toolchain-candidates-group" style="margin-top: 6px;">
-                <label for="armToolchainCandidates" data-i18n="armToolchainCandidates">Detected toolchains (pick to switch)</label>
-                <select id="armToolchainCandidates"></select>
-            </div>
-            <div id="arm-download-link-container" class="hidden">
-                <small><span data-i18n="noArmToolchainFound">ARM Toolchain not found.</span> <a href="https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads" data-i18n="downloadArmToolchain">Download it here</a>.</small>
-            </div>
-            <div id="arm-toolchain-info" class="toolchain-info hidden">
-                <div class="info-row">
-                    <span class="info-label" data-i18n="version">Version:</span>
-                    <span id="arm-version" class="info-value">-</span>
+            <!-- Card: Project -->
+            <section class="card span-6">
+                <div class="card-title">
+                    <span class="card-num">01</span>
+                    <h2 data-i18n="cardProject">Project</h2>
                 </div>
-                <div class="info-row">
-                    <span class="info-label" data-i18n="target">Target:</span>
-                    <span id="arm-target" class="info-value">-</span>
-                </div>
-            </div>
-        </div>
 
-        <div class="form-group">
-            <label for="targetFile" data-i18n="targetFile">Target File / ID</label>
-            <div class="searchable-select">
-                <div class="search-input-wrapper">
-                    <input type="text" id="targetFileSearch" class="search-input" data-i18n-placeholder="searchTarget" placeholder="Search target files...">
-                    <button type="button" class="search-clear-btn" id="targetFileSearchClear" title="Clear search">×</button>
-                </div>
-                <select id="targetFile" class="searchable-dropdown">
-                    <option value="" disabled selected>Provide valid OpenOCD path to populate...</option>
-                </select>
-            </div>
-        </div>
-
-        <div class="form-group">
-            <label for="svdFilePath" data-i18n="svdFile">SVD File Path (Optional)</label>
-            <input type="text" id="svdFilePath" data-i18n-placeholder="svdPlaceholder">
-        </div>
-
-        <div class="form-group">
-            <label>
-                <input type="checkbox" id="liveWatchEnabled"> <span data-i18n="liveWatchEnable">Enable Live Watch</span>
-            </label>
-        </div>
-
-        <div class="form-group hidden" id="livewatch-options">
-            <!-- Dynamic Variable Management -->
-            <div class="form-group">
-                <label data-i18n="currentVariables">Current Variables</label>
-                <div id="variable-list" class="variable-list"></div>
-                <div class="variable-add-section">
-                    <div class="input-group">
-                        <input type="text" id="newVariableInput" data-i18n-placeholder="variableName" placeholder="Variable name">
-                        <button type="button" id="addVariableButton" data-i18n="addVariable">Add Variable</button>
+                <div class="field">
+                    <label for="executablePath" data-i18n="executable">Executable (.elf / .axf / .bin / .hex)</label>
+                    <div class="hidden field-sub" id="executable-candidates-group">
+                        <select id="executableCandidates"></select>
+                    </div>
+                    <input type="text" id="executablePath" data-i18n-placeholder="executablePlaceholder"
+                        placeholder="${workspaceFolder}/build/Debug/project.elf">
+                    <small id="executableDetectedHint" class="hint hidden"></small>
+                    <!-- 兼容性占位：旧 main.js 引用了 elfSourceRadios 这个 NodeList -->
+                    <div class="hidden">
+                        <input type="radio" name="elfSource" value="auto" checked>
+                        <input type="radio" name="elfSource" value="manual">
                     </div>
                 </div>
-            </div>
 
-            <div class="form-group">
-                <label for="liveWatchFrequency" data-i18n="liveWatchFrequency">Update Frequency (samples/second)</label>
-                <input type="number" id="liveWatchFrequency" value="4" min="1" max="100" placeholder="e.g., 4">
-                <small data-i18n="liveWatchFrequencyHelp">Higher values provide more frequent updates but may impact debugging performance</small>
+                <div class="field hidden" id="manual-elf-path-group"></div>
+            </section>
+
+            <!-- Card: Device -->
+            <section class="card span-6">
+                <div class="card-title">
+                    <span class="card-num">02</span>
+                    <h2 data-i18n="cardDevice">Target Device</h2>
+                </div>
+
+                <div class="field">
+                    <label for="deviceName" data-i18n="deviceName">Device Name</label>
+                    <input type="text" id="deviceName" data-i18n-placeholder="devicePlaceholder">
+                    <small id="deviceDetectedHint" class="hint hidden"></small>
+                </div>
+            </section>
+
+            <!-- Card: GDB Server -->
+            <section class="card span-12">
+                <div class="card-title">
+                    <span class="card-num">03</span>
+                    <h2 data-i18n="cardGdbServer">GDB Server</h2>
+                </div>
+
+                <div class="row row-3">
+                    <div class="field">
+                        <label for="servertype" data-i18n="gdbServer">Server</label>
+                        <select id="servertype">
+                            <option value="openocd" selected>OpenOCD</option>
+                            <option value="pyocd">pyOCD</option>
+                            <option value="jlink">J-Link</option>
+                            <option value="stlink">ST-Link GDB Server</option>
+                            <option value="stutil">ST-Util</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="transportInterface" data-i18n="transportInterface">Transport</label>
+                        <select id="transportInterface">
+                            <option value="swd" selected>SWD</option>
+                            <option value="jtag">JTAG</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="adapterSpeed" data-i18n="adapterSpeed">Adapter Speed (kHz)</label>
+                        <input type="number" id="adapterSpeed" value="4000" placeholder="4000">
+                    </div>
+                </div>
+
+                <div id="openocd-options">
+                    <div class="field" id="openocd-path-group">
+                        <label for="openocdPath" data-i18n="openocdPath">OpenOCD Path</label>
+                        <div class="input-row">
+                            <input type="text" id="openocdPath" data-i18n-placeholder="autoDetecting">
+                            <button class="btn-secondary" id="browse-button" data-i18n="browseButton">Browse</button>
+                            <button class="btn-secondary" id="refresh-button" data-i18n="scanButton">Scan</button>
+                            <button class="btn-secondary" id="env-setup-button" data-i18n="envSetupButton">ENV</button>
+                        </div>
+                        <div id="openocd-status" class="status-info"></div>
+                        <div id="download-link-container" class="hidden">
+                            <small><span data-i18n="noOpenocdFound">OpenOCD not found.</span>
+                                <a href="#" id="env-guide-link" data-i18n="viewEnvGuide">View setup guide</a> ·
+                                <a href="https://github.com/xpack-dev-tools/openocd-xpack/releases"
+                                    data-i18n="downloadOpenocd">Download</a></small>
+                        </div>
+                    </div>
+
+                    <div class="row row-2">
+                        <div class="field">
+                            <label for="interfaceFile" data-i18n="interfaceFile">Interface File</label>
+                            <input type="text" id="interfaceFile" class="picker-trigger" readonly
+                                data-i18n-placeholder="providePath" placeholder="Provide valid OpenOCD path…">
+                        </div>
+                        <div class="field">
+                            <label for="targetFile" data-i18n="targetFile">Target File / ID</label>
+                            <input type="text" id="targetFile" class="picker-trigger" readonly
+                                data-i18n-placeholder="providePath" placeholder="Provide valid OpenOCD path…">
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Card: ARM Toolchain -->
+            <section class="card span-12" id="arm-toolchain-section">
+                <div class="card-title">
+                    <span class="card-num">04</span>
+                    <h2 data-i18n="cardToolchain">ARM Toolchain</h2>
+                </div>
+
+                <div class="field">
+                    <label for="armToolchainPath" data-i18n="armToolchainPath">ARM Toolchain Path</label>
+                    <div class="input-row">
+                        <input type="text" id="armToolchainPath" data-i18n-placeholder="autoDetecting">
+                        <button class="btn-secondary" id="browse-arm-button" data-i18n="browseButton">Browse</button>
+                        <button class="btn-secondary" id="refresh-arm-button" data-i18n="scanButton">Scan</button>
+                    </div>
+                </div>
+
+                <div class="field hidden" id="arm-toolchain-candidates-group">
+                    <label for="armToolchainCandidates" data-i18n="armToolchainCandidates">Detected toolchains</label>
+                    <select id="armToolchainCandidates"></select>
+                </div>
+
+                <div id="arm-download-link-container" class="hidden">
+                    <small><span data-i18n="noArmToolchainFound">ARM Toolchain not found.</span>
+                        <a href="https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads"
+                            data-i18n="downloadArmToolchain">Download</a></small>
+                </div>
+
+                <div id="arm-toolchain-info" class="info-card hidden">
+                    <div class="info-row">
+                        <span class="info-label" data-i18n="version">Version</span>
+                        <span id="arm-version" class="info-value">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label" data-i18n="target">Target</span>
+                        <span id="arm-target" class="info-value">-</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Card: Advanced -->
+            <section class="card span-12">
+                <div class="card-title">
+                    <span class="card-num">05</span>
+                    <h2 data-i18n="cardAdvanced">Advanced</h2>
+                </div>
+
+                <div class="field">
+                    <label for="svdFilePath" data-i18n="svdFile">SVD File Path (Optional)</label>
+                    <input type="text" id="svdFilePath" data-i18n-placeholder="svdPlaceholder">
+                </div>
+
+                <div class="field toggle-field">
+                    <label class="toggle-label">
+                        <input type="checkbox" id="liveWatchEnabled">
+                        <span data-i18n="liveWatchEnable">Enable Live Watch</span>
+                    </label>
+                </div>
+
+                <div class="hidden" id="livewatch-options">
+                    <div class="field">
+                        <label data-i18n="currentVariables">Current Variables</label>
+                        <div id="variable-list" class="variable-list"></div>
+                        <div class="input-row variable-add-section">
+                            <input type="text" id="newVariableInput" data-i18n-placeholder="variableName"
+                                placeholder="Variable name">
+                            <button type="button" class="btn-secondary" id="addVariableButton" data-i18n="addVariable">Add</button>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label for="liveWatchFrequency" data-i18n="liveWatchFrequency">Update Frequency (samples/s)</label>
+                        <input type="number" id="liveWatchFrequency" value="4" min="1" max="100" placeholder="4">
+                        <small class="hint" data-i18n="liveWatchFrequencyHelp">Higher values = more frequent updates but higher overhead</small>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer / generate button -->
+        <footer class="app-footer">
+            <button id="generate-button" class="btn-primary" data-i18n="generateButton">Generate Configuration</button>
+            <p class="footer-credit" data-i18n="createdBy">Created by 左岚</p>
+        </footer>
+    </div>
+
+    <!-- Modal picker for interface/target cfg files -->
+    <div id="cfg-picker-modal" class="modal hidden" role="dialog" aria-modal="true">
+        <div class="modal-backdrop"></div>
+        <div class="modal-panel">
+            <div class="modal-header">
+                <h3 id="cfg-picker-title">Pick a file</h3>
+                <button type="button" class="modal-close" id="cfg-picker-close" aria-label="Close">×</button>
             </div>
+            <input type="text" id="cfg-picker-search" class="modal-search" data-i18n-placeholder="cfgPickerSearch"
+                placeholder="Type to filter…" autocomplete="off">
+            <ul id="cfg-picker-list" class="picker-list"></ul>
+            <div id="cfg-picker-empty" class="picker-empty hidden" data-i18n="cfgPickerEmpty">No matches</div>
         </div>
-
-        <button id="generate-button" data-i18n="generateButton">Generate Configuration</button>
-        <p class="footer" data-i18n="createdBy">Created by 左岚</p>
     </div>
 
     <script src="{{stateManagerUri}}"></script>

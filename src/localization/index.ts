@@ -129,6 +129,16 @@ export interface LocalizedStrings {
     armToolchainCandidates: string;
     /** 传输方式（SWD/JTAG）下拉框标签 */
     transportInterface: string;
+    /** 卡片标题：项目 */
+    cardProject: string;
+    /** 卡片标题：目标设备 */
+    cardDevice: string;
+    /** 卡片标题：GDB Server */
+    cardGdbServer: string;
+    /** 卡片标题：ARM 工具链 */
+    cardToolchain: string;
+    /** 卡片标题：高级选项 */
+    cardAdvanced: string;
     /** 固件文件标签 */
     executable: string;
     /** 固件路径输入占位符 */
@@ -137,6 +147,12 @@ export interface LocalizedStrings {
     executablePickHint: string;
     /** 固件检测结果提示 */
     executableDetectedHint: string;
+    /** 模态选择器搜索框占位 */
+    cfgPickerSearch: string;
+    /** 模态选择器无匹配提示 */
+    cfgPickerEmpty: string;
+    /** 模态选择器：还没有 cfg 候选可选 */
+    cfgPickerNoOptions: string;
     /** SVD文件占位符 */
     svdPlaceholder: string;
     /** 自动检测中 */

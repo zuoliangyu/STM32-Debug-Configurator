@@ -438,6 +438,137 @@
         console.log('[SmartFill] no preferred interface match');
     }
 
+    // ============================================================
+    // CFG 选择器模态对话框
+    // ============================================================
+    const cfgPicker = {
+        modal: null,
+        title: null,
+        search: null,
+        listEl: null,
+        emptyEl: null,
+        currentField: null,   // 'interface' | 'target'
+        activeIndex: 0,
+        currentItems: [],
+
+        init() {
+            this.modal = document.getElementById('cfg-picker-modal');
+            this.title = document.getElementById('cfg-picker-title');
+            this.search = document.getElementById('cfg-picker-search');
+            this.listEl = document.getElementById('cfg-picker-list');
+            this.emptyEl = document.getElementById('cfg-picker-empty');
+            const closeBtn = document.getElementById('cfg-picker-close');
+            const backdrop = this.modal?.querySelector('.modal-backdrop');
+
+            if (closeBtn) closeBtn.addEventListener('click', () => this.close());
+            if (backdrop) backdrop.addEventListener('click', () => this.close());
+            if (this.search) {
+                this.search.addEventListener('input', () => this.render());
+                this.search.addEventListener('keydown', (e) => this.onKey(e));
+            }
+        },
+
+        open(field) {
+            if (!this.modal) return;
+            this.currentField = field;
+            const list = field === 'interface' ? originalOptions.interface : originalOptions.target;
+            const target = field === 'interface' ? elements.interfaceFileSelect : elements.targetFileSelect;
+
+            if (!list || list.length === 0) {
+                showMessage(strings.cfgPickerNoOptions || 'Provide a valid OpenOCD path first to load cfg files', 'warning');
+                return;
+            }
+
+            // 标题
+            const labelKey = field === 'interface' ? 'interfaceFile' : 'targetFile';
+            this.title.textContent = (strings[labelKey]) || (field === 'interface' ? 'Interface File' : 'Target File / ID');
+
+            this.search.value = '';
+            this.activeIndex = 0;
+            this.render();
+
+            this.modal.classList.remove('hidden');
+            setTimeout(() => this.search.focus(), 30);
+        },
+
+        close() {
+            if (this.modal) this.modal.classList.add('hidden');
+            this.currentField = null;
+        },
+
+        render() {
+            const all = this.currentField === 'interface' ? originalOptions.interface : originalOptions.target;
+            const q = this.search.value.trim().toLowerCase();
+            const filtered = q ? all.filter((s) => s.toLowerCase().includes(q)) : all;
+            this.currentItems = filtered;
+
+            this.listEl.innerHTML = '';
+            if (filtered.length === 0) {
+                this.emptyEl?.classList.remove('hidden');
+                return;
+            }
+            this.emptyEl?.classList.add('hidden');
+
+            // 当前已选中项放在最前显示
+            const target = this.currentField === 'interface' ? elements.interfaceFileSelect : elements.targetFileSelect;
+            const currentValue = (target?.value || '').toLowerCase();
+
+            this.activeIndex = Math.min(this.activeIndex, filtered.length - 1);
+            if (this.activeIndex < 0) this.activeIndex = 0;
+
+            filtered.forEach((item, idx) => {
+                const li = document.createElement('li');
+                li.textContent = item;
+                if (item.toLowerCase() === currentValue) {
+                    li.classList.add('active');
+                    this.activeIndex = idx;
+                }
+                if (idx === this.activeIndex && !li.classList.contains('active')) {
+                    li.classList.add('active');
+                }
+                li.addEventListener('click', () => this.pick(item));
+                this.listEl.appendChild(li);
+            });
+        },
+
+        pick(value) {
+            const target = this.currentField === 'interface' ? elements.interfaceFileSelect : elements.targetFileSelect;
+            if (target) {
+                target.value = value;
+                target.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            this.close();
+        },
+
+        onKey(e) {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                this.close();
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                this.activeIndex = Math.min(this.activeIndex + 1, this.currentItems.length - 1);
+                this.refreshActive();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                this.activeIndex = Math.max(this.activeIndex - 1, 0);
+                this.refreshActive();
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                const picked = this.currentItems[this.activeIndex];
+                if (picked) this.pick(picked);
+            }
+        },
+
+        refreshActive() {
+            const items = this.listEl.querySelectorAll('li');
+            items.forEach((li, idx) => {
+                li.classList.toggle('active', idx === this.activeIndex);
+            });
+            const active = items[this.activeIndex];
+            if (active) active.scrollIntoView({ block: 'nearest' });
+        }
+    };
+
     // Configuration and file handling
     function requestCFGFiles() {
         const path = elements.openocdPathInput.value;
@@ -454,16 +585,24 @@
     };
 
     function populateDropdown(selectElement, options) {
-        // Store original options for search
+        if (!selectElement) return;
+        // 候选列表存到 originalOptions，模态选择器从这里读
         if (selectElement.id === 'interfaceFile') {
             originalOptions.interface = [...options];
         } else if (selectElement.id === 'targetFile') {
             originalOptions.target = [...options];
         }
 
+        // 新设计：interfaceFile / targetFile 是 readonly <input>，点击触发模态选择器
+        // 候选列表通过 originalOptions 存储，不再写到 DOM
+        if (selectElement.tagName === 'INPUT') {
+            return;
+        }
+
+        // 旧 <select> 兼容路径（保留给可能没迁移的下拉）
         selectElement.innerHTML = '';
         const searchableContainer = selectElement.closest('.searchable-select');
-        
+
         if (options.length === 0) {
             const defaultOption = document.createElement('option');
             defaultOption.value = "";
@@ -471,7 +610,7 @@
             defaultOption.disabled = true;
             defaultOption.selected = true;
             selectElement.appendChild(defaultOption);
-            
+
             // Hide search input when no options
             if (searchableContainer) {
                 searchableContainer.classList.add('disabled');
@@ -633,6 +772,11 @@
             elements.interfaceFileSelect.addEventListener('change', () => {
                 interfaceUserPicked = true;
             });
+            // 点击触发模态选择器
+            elements.interfaceFileSelect.addEventListener('click', () => cfgPicker.open('interface'));
+        }
+        if (elements.targetFileSelect) {
+            elements.targetFileSelect.addEventListener('click', () => cfgPicker.open('target'));
         }
 
         // 固件下拉切换 → 同步到 executablePath input
@@ -726,67 +870,24 @@
             });
         }
 
-        // Search functionality for interface files
-        elements.interfaceFileSearch.addEventListener('input', 
-            createSearchHandler(elements.interfaceFileSearch, elements.interfaceFileSelect, 'interface')
-        );
-        
-        elements.interfaceFileSearchClear.addEventListener('click', 
-            createClearHandler(elements.interfaceFileSearch, elements.interfaceFileSelect, 'interface')
-        );
-
-        // Keyboard navigation for interface files
-        elements.interfaceFileSearch.addEventListener('keydown', function(event) {
-            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-                event.preventDefault();
-                elements.interfaceFileSelect.focus();
-                if (elements.interfaceFileSelect.options.length > 0) {
-                    elements.interfaceFileSelect.selectedIndex = 0;
-                }
-            } else if (event.key === 'Enter') {
-                if (elements.interfaceFileSelect.options.length === 1 && !elements.interfaceFileSelect.options[0].disabled) {
-                    elements.interfaceFileSelect.selectedIndex = 0;
-                    elements.interfaceFileSelect.focus();
-                }
-            } else if (event.key === 'Escape') {
-                elements.interfaceFileSearch.value = '';
-                const originalList = originalOptions['interface'];
-                if (originalList && originalList.length > 0) {
-                    populateDropdown(elements.interfaceFileSelect, originalList);
-                }
-            }
-        });
-
-        // Search functionality for target files
-        elements.targetFileSearch.addEventListener('input', 
-            createSearchHandler(elements.targetFileSearch, elements.targetFileSelect, 'target')
-        );
-        
-        elements.targetFileSearchClear.addEventListener('click', 
-            createClearHandler(elements.targetFileSearch, elements.targetFileSelect, 'target')
-        );
-
-        // Keyboard navigation for target files
-        elements.targetFileSearch.addEventListener('keydown', function(event) {
-            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-                event.preventDefault();
-                elements.targetFileSelect.focus();
-                if (elements.targetFileSelect.options.length > 0) {
-                    elements.targetFileSelect.selectedIndex = 0;
-                }
-            } else if (event.key === 'Enter') {
-                if (elements.targetFileSelect.options.length === 1 && !elements.targetFileSelect.options[0].disabled) {
-                    elements.targetFileSelect.selectedIndex = 0;
-                    elements.targetFileSelect.focus();
-                }
-            } else if (event.key === 'Escape') {
-                elements.targetFileSearch.value = '';
-                const originalList = originalOptions['target'];
-                if (originalList && originalList.length > 0) {
-                    populateDropdown(elements.targetFileSelect, originalList);
-                }
-            }
-        });
+        // 旧的独立搜索框已被移除，改用 <input list="..."> + <datalist> 原生组合框。
+        // 下面的 search 监听器只在元素存在时绑定（向前兼容老版本 webview）。
+        if (elements.interfaceFileSearch && elements.interfaceFileSearchClear) {
+            elements.interfaceFileSearch.addEventListener('input',
+                createSearchHandler(elements.interfaceFileSearch, elements.interfaceFileSelect, 'interface')
+            );
+            elements.interfaceFileSearchClear.addEventListener('click',
+                createClearHandler(elements.interfaceFileSearch, elements.interfaceFileSelect, 'interface')
+            );
+        }
+        if (elements.targetFileSearch && elements.targetFileSearchClear) {
+            elements.targetFileSearch.addEventListener('input',
+                createSearchHandler(elements.targetFileSearch, elements.targetFileSelect, 'target')
+            );
+            elements.targetFileSearchClear.addEventListener('click',
+                createClearHandler(elements.targetFileSearch, elements.targetFileSelect, 'target')
+            );
+        }
 
         // Refresh OpenOCD path
         elements.refreshButton.addEventListener('click', () => {
@@ -1104,12 +1205,13 @@
 
     // Initialize UI
     function initialize() {
+        cfgPicker.init();
         setupEventListeners();
-        toggleOpenOCDPathVisibility(); 
+        toggleOpenOCDPathVisibility();
         updateElfSourceVisibility();
         updateLiveWatchVisibility();
         updateVariableList();
-        
+
         // Request initial language and strings from extension
         vscode.postMessage({ command: 'getLanguage' });
     }
