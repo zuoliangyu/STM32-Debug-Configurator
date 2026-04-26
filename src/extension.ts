@@ -30,6 +30,9 @@ import { AutoConfigurationDialog } from './ui/autoConfigurationDialog';
 /** 检测到的OpenOCD路径 */
 let detectedOpenOCDPath: string | null = null;
 
+/** 激活期触发的 OpenOCD 检测 promise，webview 打开时 await 一次以避免竞态 */
+let openocdDetectionPromise: Promise<string | null> | null = null;
+
 /** 检测到的ARM工具链路径 */
 let detectedArmToolchainPath: string | null = null;
 
@@ -81,15 +84,19 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     // Initialize OpenOCD path detection with better error handling
-    findOpenOCDPath().then(path => {
-        detectedOpenOCDPath = path;
-        if (!path) {
-            console.warn('OpenOCD not found in PATH or common installation directories. Users can set custom path in settings.');
-        }
-    }).catch(error => {
-        console.error('Error during OpenOCD path detection:', error);
-        detectedOpenOCDPath = null;
-    });
+    openocdDetectionPromise = findOpenOCDPath()
+        .then((path) => {
+            detectedOpenOCDPath = path;
+            if (!path) {
+                console.warn('OpenOCD not found in PATH or common installation directories. Users can set custom path in settings.');
+            }
+            return path;
+        })
+        .catch((error) => {
+            console.error('Error during OpenOCD path detection:', error);
+            detectedOpenOCDPath = null;
+            return null;
+        });
 
     // Initialize ARM toolchain detection
     findArmToolchainPath().then(async path => {
@@ -334,56 +341,9 @@ export function activate(context: vscode.ExtensionContext) {
                 }
             }, null, context.subscriptions);
 
-            // Restore saved state after webview is created
-            await restoreSavedStateToWebview();
-
-            // Send OpenOCD status with environment info
-            const envStatus = await checkOpenOCDEnvironment();
-            currentPanel.webview.postMessage({ 
-                command: 'updatePath', 
-                path: detectedOpenOCDPath,
-                foundInPath: envStatus.foundInPath,
-                foundInSettings: envStatus.foundInSettings,
-                version: envStatus.version,
-                suggestions: envStatus.suggestions
-            });
-            currentPanel.webview.postMessage({
-                command: 'updateArmToolchainPath',
-                path: detectedArmToolchainPath,
-                info: armToolchainInfo
-            });
-
-            // 枚举所有候选工具链，让 webview 提供下拉选择
-            try {
-                const candidates = await enumerateArmToolchains();
-                currentPanel.webview.postMessage({
-                    command: 'updateArmToolchainCandidates',
-                    candidates
-                });
-            } catch (error) {
-                console.warn('Failed to enumerate ARM toolchains:', error);
-            }
-
-            // 扫描工作区检测 STM32 设备型号
-            try {
-                console.log('[DeviceDetect] starting workspace scan...');
-                const detected = await detectStm32Device();
-                console.log('[DeviceDetect] result:', detected);
-                if (detected) {
-                    currentPanel.webview.postMessage({
-                        command: 'updateDetectedDevice',
-                        device: detected.device,
-                        source: detected.source,
-                        sourceType: detected.sourceType
-                    });
-                    console.log('[DeviceDetect] posted updateDetectedDevice to webview');
-                } else {
-                    console.log('[DeviceDetect] no device detected in workspace');
-                }
-            } catch (error) {
-                console.warn('[DeviceDetect] auto-detection failed:', error);
-            }
-
+            // 关键：必须在任何 postMessage 之前注册 message 监听器。
+            // 否则 webview 拿到 updatePath 后回的 getCFGFiles 会落到一个还没注册的监听器上 → 静默丢弃，
+            // 表现为下拉框停在"请提供有效的 OpenOCD 路径以填充..."直到用户手动点扫描。
             currentPanel.webview.onDidReceiveMessage(
                 async message => {
                     switch (message.command) {
@@ -396,32 +356,30 @@ export function activate(context: vscode.ExtensionContext) {
                                 const newPath = await findOpenOCDPath();
                                 detectedOpenOCDPath = newPath;
                                 const envStatus = await checkOpenOCDEnvironment();
-                                
-                                currentPanel?.webview.postMessage({ 
-                                    command: 'updatePath', 
+
+                                currentPanel?.webview.postMessage({
+                                    command: 'updatePath',
                                     path: detectedOpenOCDPath,
                                     foundInPath: envStatus.foundInPath,
                                     foundInSettings: envStatus.foundInSettings,
                                     version: envStatus.version,
                                     suggestions: envStatus.suggestions
                                 });
-                                
+
                                 if (!newPath) {
-                                    // Show configuration wizard instead of just warning
                                     const action = await vscode.window.showWarningMessage(
                                         localizationManager.getString('noOpenocdFound') + ' Would you like to configure it now?',
                                         'Configure OpenOCD',
                                         'Open Settings',
                                         'Cancel'
                                     );
-                                    
+
                                     if (action === 'Configure OpenOCD') {
                                         await showOpenOCDConfigurationWizard();
                                     } else if (action === 'Open Settings') {
                                         vscode.commands.executeCommand('workbench.action.openSettings', 'stm32-configurator.openocdPath');
                                     }
                                 } else {
-                                    // Validate the detected OpenOCD
                                     const validation = await validateOpenOCDConfiguration(newPath);
                                     if (validation.valid) {
                                         vscode.window.showInformationMessage(
@@ -498,10 +456,10 @@ export function activate(context: vscode.ExtensionContext) {
                                 if (armPath) {
                                     detectedArmToolchainPath = armPath;
                                     armToolchainInfo = await getArmToolchainInfo(armPath);
-                                    currentPanel?.webview.postMessage({ 
-                                        command: 'updateArmToolchainPath', 
+                                    currentPanel?.webview.postMessage({
+                                        command: 'updateArmToolchainPath',
                                         path: armPath,
-                                        info: armToolchainInfo 
+                                        info: armToolchainInfo
                                     });
                                 }
                             } catch (error: any) {
@@ -514,7 +472,6 @@ export function activate(context: vscode.ExtensionContext) {
                                 const newPath = await findArmToolchainPath();
                                 detectedArmToolchainPath = newPath;
 
-                                // 同时刷新候选列表
                                 try {
                                     const candidates = await enumerateArmToolchains();
                                     currentPanel?.webview.postMessage({
@@ -535,10 +492,10 @@ export function activate(context: vscode.ExtensionContext) {
                                     vscode.window.showInformationMessage(`ARM toolchain detected: ${armToolchainInfo.version} at ${newPath}`);
                                 } else {
                                     armToolchainInfo = null;
-                                    currentPanel?.webview.postMessage({ 
-                                        command: 'updateArmToolchainPath', 
+                                    currentPanel?.webview.postMessage({
+                                        command: 'updateArmToolchainPath',
                                         path: null,
-                                        info: null 
+                                        info: null
                                     });
                                     vscode.window.showWarningMessage(
                                         'ARM toolchain not found. Please install it or set custom path in extension settings.',
@@ -551,10 +508,10 @@ export function activate(context: vscode.ExtensionContext) {
                                 }
                             } catch (error) {
                                 vscode.window.showErrorMessage(`Error detecting ARM toolchain path: ${error}`);
-                                currentPanel?.webview.postMessage({ 
-                                    command: 'updateArmToolchainPath', 
+                                currentPanel?.webview.postMessage({
+                                    command: 'updateArmToolchainPath',
                                     path: null,
-                                    info: null 
+                                    info: null
                                 });
                             }
                             return;
@@ -592,6 +549,66 @@ export function activate(context: vscode.ExtensionContext) {
                 undefined,
                 context.subscriptions
             );
+
+            // Restore saved state after webview is created
+            await restoreSavedStateToWebview();
+
+            // 等首次激活时启动的检测完成（如已完成则立即返回），避免把 null 推给 webview
+            if (openocdDetectionPromise) {
+                try {
+                    await openocdDetectionPromise;
+                } catch {
+                    // 已在 .catch 里处理过
+                }
+            }
+
+            // Send OpenOCD status with environment info
+            const envStatus = await checkOpenOCDEnvironment();
+            currentPanel.webview.postMessage({
+                command: 'updatePath',
+                path: detectedOpenOCDPath,
+                foundInPath: envStatus.foundInPath,
+                foundInSettings: envStatus.foundInSettings,
+                version: envStatus.version,
+                suggestions: envStatus.suggestions
+            });
+            currentPanel.webview.postMessage({
+                command: 'updateArmToolchainPath',
+                path: detectedArmToolchainPath,
+                info: armToolchainInfo
+            });
+
+            // 枚举所有候选工具链，让 webview 提供下拉选择
+            try {
+                const candidates = await enumerateArmToolchains();
+                currentPanel.webview.postMessage({
+                    command: 'updateArmToolchainCandidates',
+                    candidates
+                });
+            } catch (error) {
+                console.warn('Failed to enumerate ARM toolchains:', error);
+            }
+
+            // 扫描工作区检测 STM32 设备型号
+            try {
+                console.log('[DeviceDetect] starting workspace scan...');
+                const detected = await detectStm32Device();
+                console.log('[DeviceDetect] result:', detected);
+                if (detected) {
+                    currentPanel.webview.postMessage({
+                        command: 'updateDetectedDevice',
+                        device: detected.device,
+                        source: detected.source,
+                        sourceType: detected.sourceType
+                    });
+                    console.log('[DeviceDetect] posted updateDetectedDevice to webview');
+                } else {
+                    console.log('[DeviceDetect] no device detected in workspace');
+                }
+            } catch (error) {
+                console.warn('[DeviceDetect] auto-detection failed:', error);
+            }
+
         })
     );
 

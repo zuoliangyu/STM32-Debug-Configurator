@@ -299,8 +299,10 @@
             
             if (savedState.openocdPath && elements.openocdPathInput) {
                 elements.openocdPathInput.value = savedState.openocdPath;
+                // 状态恢复时也得主动拉一次 cfg 列表，否则下拉框停留在初始占位
+                requestCFGFiles();
             }
-            
+
             if (savedState.armToolchainPath && elements.armToolchainPathInput) {
                 elements.armToolchainPathInput.value = savedState.armToolchainPath;
             }
@@ -360,6 +362,55 @@
             setTimeout(() => {
                 autoSaveEnabled = true;
             }, 2000);
+        }
+    }
+
+    // 智能匹配：根据设备型号推断 OpenOCD target.cfg
+    let lastDetectedDevice = null;
+    let lastLoadedCfgs = { interfaces: [], targets: [] };
+    // 用户是否手动改过 target 下拉。populateDropdown 是程序填充，不应触发 change 事件 → 此 flag 保持 false
+    let targetUserPicked = false;
+
+    function inferTargetCfg(deviceName, availableTargets) {
+        if (!deviceName || !Array.isArray(availableTargets) || availableTargets.length === 0) {
+            return null;
+        }
+        const m = deviceName.match(/^STM32([A-Z])(\d)/i);
+        if (!m) {
+            return null;
+        }
+        const series = (m[1] + m[2]).toLowerCase(); // e.g. h7 / f4 / l4
+        const partMatch = deviceName.match(/^STM32([A-Z]\d+)/i);
+        const candidates = [
+            `stm32${series}x.cfg`,
+            `stm32${series}xx.cfg`
+        ];
+        if (partMatch) {
+            candidates.unshift(`stm32${partMatch[1].toLowerCase()}.cfg`);
+        }
+        const lookup = new Map(availableTargets.map((t) => [t.toLowerCase(), t]));
+        for (const c of candidates) {
+            if (lookup.has(c)) {
+                return lookup.get(c);
+            }
+        }
+        return null;
+    }
+
+    function trySmartFillTarget() {
+        if (!lastDetectedDevice || !lastLoadedCfgs.targets.length || !elements.targetFileSelect) {
+            return;
+        }
+        // 只在用户从未手动挑选过时自动填
+        if (targetUserPicked) {
+            return;
+        }
+        const inferred = inferTargetCfg(lastDetectedDevice, lastLoadedCfgs.targets);
+        if (inferred) {
+            elements.targetFileSelect.value = inferred;
+            console.log('[SmartFill] target auto-filled to', inferred, 'for device', lastDetectedDevice);
+        } else {
+            console.log('[SmartFill] no target match for device', lastDetectedDevice);
         }
     }
 
@@ -532,6 +583,26 @@
 
         // OpenOCD path handling
         elements.openocdPathInput.addEventListener('blur', requestCFGFiles);
+
+        // 设备名变化时重新触发 target.cfg 智能匹配
+        if (elements.deviceNameInput) {
+            elements.deviceNameInput.addEventListener('change', () => {
+                const v = elements.deviceNameInput.value.trim();
+                if (v && v !== lastDetectedDevice) {
+                    lastDetectedDevice = v;
+                    // 用户改了设备 → 之前的自动填充作废，重新匹配
+                    targetUserPicked = false;
+                    trySmartFillTarget();
+                }
+            });
+        }
+
+        // target dropdown 用户手动选择 → 标记为已选，后续 smart fill 不再覆盖
+        if (elements.targetFileSelect) {
+            elements.targetFileSelect.addEventListener('change', () => {
+                targetUserPicked = true;
+            });
+        }
 
         // ARM 工具链下拉切换 → 同步到 input + 触发版本/路径刷新
         if (elements.armToolchainCandidatesSelect) {
@@ -783,6 +854,11 @@
                 console.log('[CFG] received updateCFGLists, interfaces:', message.data?.interfaces?.length, 'targets:', message.data?.targets?.length);
                 populateDropdown(elements.interfaceFileSelect, message.data.interfaces);
                 populateDropdown(elements.targetFileSelect, message.data.targets);
+                lastLoadedCfgs = {
+                    interfaces: message.data?.interfaces || [],
+                    targets: message.data?.targets || []
+                };
+                trySmartFillTarget();
                 break;
 
             case 'updateLanguage':
@@ -825,6 +901,8 @@
                             stateManager.updateState('deviceName', message.device, false);
                         }
                     }
+                    lastDetectedDevice = elements.deviceNameInput.value.trim() || message.device;
+                    trySmartFillTarget();
                     if (elements.deviceDetectedHint) {
                         const tmpl = (typeof strings !== 'undefined' && strings.deviceDetectedHint) || 'Detected {0} from {1}';
                         elements.deviceDetectedHint.textContent = tmpl
@@ -972,7 +1050,10 @@
         }
         
         // 恢复路径配置
-        if (state.openocdPath) elements.openocdPathInput.value = state.openocdPath;
+        if (state.openocdPath) {
+            elements.openocdPathInput.value = state.openocdPath;
+            requestCFGFiles();
+        }
         if (state.armToolchainPath) elements.armToolchainPathInput.value = state.armToolchainPath;
         
         // 恢复OpenOCD文件选择

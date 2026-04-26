@@ -249,7 +249,8 @@
     "test:watch": "npm run compile && mocha ./out/test/**/*.test.js --watch",
     "test:coverage": "nyc npm run test:all",
     "test:device": "npm run compile && node scripts/test-device-detector.js",
-    "test:arm": "npm run compile && node scripts/test-arm-toolchain.js"
+    "test:arm": "npm run compile && node scripts/test-arm-toolchain.js",
+    "test:target": "node scripts/test-target-inference.js"
   },
   "devDependencies": {
     "@types/jsdom": "^21.1.6",
