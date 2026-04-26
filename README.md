@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-0.2.5-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
 ![VS Code](https://img.shields.io/badge/VS%20Code-^1.80.0-007ACC.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)
@@ -880,7 +880,40 @@ npm run test:watch
 
 ## 📝 Release Notes
 
-### Version 0.2.5 (Current) - January 2025
+### Version 1.0.0 (Current) - April 2026 🎉
+
+**First stable release.** Major automation overhaul: walk away from filling forms manually, the extension now scans your workspace and pre-fills almost everything.
+
+#### ✨ New Features
+- **STM32 device auto-detection**: Reads `Mcu.UserName` from `.ioc`, falls back to `.cproject` / `CMakeLists.txt`. Source file shown under the input.
+- **Firmware file scanning**: Discovers all `.elf` / `.axf` / `.bin` / `.hex` in common build output dirs; user picks from a dropdown sorted by Debug > Release and elf > axf > hex > bin.
+- **Modal cfg picker**: Click the Interface / Target File input → dialog opens with searchable list, highlighted current selection, full keyboard navigation (↑↓/Enter/Esc).
+- **Multi-toolchain dropdown**: Lists every detected ARM toolchain (STM32 VS Code Extension bundle versions, PATH, cortex-debug user config, common installs); switch in-place without re-scanning.
+- **STM32 official extension bundle awareness**: Auto-detects `%LOCALAPPDATA%\stm32cube\bundles\gnu-tools-for-stm32\<ver>`; output path is converted to portable `${env:LOCALAPPDATA}/...` form so the launch.json works on any machine.
+- **Smart cfg matching**: Target.cfg inferred from device name (`STM32H743ZITx → stm32h7x.cfg`); interface.cfg defaults to `cmsis-dap.cfg → stlink.cfg`. Both respect manual user choice.
+- **SWD / JTAG transport selector**: Affects both `interface` field and `openOCDLaunchCommands`.
+- **`gdbPath` written automatically** based on toolchain bin directory (portable for ST bundle).
+
+#### 🎨 UI Redesign
+- **12-column responsive grid + card layout**, replacing the previous long single-column form. Cards: Project / Target Device / GDB Server / ARM Toolchain / Advanced.
+- Refined typography, spacing, custom select arrows, status cards, info cards.
+- Fully native VS Code theme variables for dark/light/high-contrast.
+
+#### 🔧 Fixes
+- Fixed `armToolchainPath` being written as `gcc.exe` path (cortex-debug expects the `bin` directory).
+- Generated launch.json now includes `serverpath`, `interface`, `showDevDebugOutput`, and `transport select` in `openOCDLaunchCommands`.
+- Removed the `${command:st-stm32-ide-debug-launch...}` fallback that required the ST extension to resolve at runtime.
+- Fixed a webview message race where `onDidReceiveMessage` was registered after the initial `postMessage` calls, causing cfg dropdowns to stay empty until the user manually clicked Scan.
+- Fixed a path-glob bug where `*` in the middle of a path (e.g. `bundles/gnu-tools-for-stm32/*/bin/...`) computed the wrong base dir, so ST bundle toolchains were never picked up.
+- Several pre-existing `ReferenceError`s on undefined globals (`stateManager`, `createStateIndicator`, `validateGenerationData`) that broke initialization.
+- Language dropdown showed Chinese while UI text stayed English (state restore didn't sync back to extension).
+
+#### 🛠 Developer Experience
+- New `scripts/watch-all.js` watches both TS and webview assets, auto-copies on change.
+- New `.vscode/launch.json` profile "Run Extension (Clean)" disables noisy extensions for clean dev-host sessions, keeps cortex-debug enabled.
+- 39 standalone test cases under `npm run test:device` / `test:arm` / `test:target` / `test:exec`.
+
+### Version 0.2.5 - January 2025
 
 #### 🔧 Documentation and Packaging Updates
 - **Updated Documentation**: Synchronized README version information and changelog across all versions

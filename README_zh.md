@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![版本](https://img.shields.io/badge/version-0.2.5-blue.svg)
+![版本](https://img.shields.io/badge/version-1.0.0-blue.svg)
 ![VS Code](https://img.shields.io/badge/VS%20Code-^1.80.0-007ACC.svg)
 ![许可证](https://img.shields.io/badge/license-MIT-green.svg)
 ![作者](https://img.shields.io/badge/author-左岚-orange.svg)
@@ -359,7 +359,40 @@ monitor reset run      # 复位并运行
 
 ## 📝 更新日志
 
-### 版本 0.2.5（最新）
+### 版本 1.0.0（最新）— 2026 年 4 月 🎉
+
+**首个稳定版本**。本次自动化重做将"读 .ioc → 找工具链 → 选 cfg → 输出 launch.json"全链路从手动填表升级为打开即用。
+
+#### ✨ 新增功能
+- **STM32 设备自动检测**：扫描工作区里 `.ioc` / `.cproject` / `CMakeLists.txt`，自动填型号（如 `STM32H743ZITx`），下方显示来源文件
+- **固件文件自动扫描**：发现 `build/Debug` 等目录下所有 `.elf` / `.axf` / `.bin` / `.hex`，按 Debug > Release、elf > axf > hex > bin 排序后下拉选择
+- **OpenOCD cfg 模态选择器**：点击接口/目标输入框 → 弹出居中对话框，顶部搜索 + 滚动列表 + 当前值高亮 + ↑↓/Enter/Esc 键盘操作 + 背景模糊
+- **多工具链候选下拉**：列出所有检测到的 ARM 工具链（STM32 官方扩展 bundle 各版本、PATH、cortex-debug 用户配置、其他常见路径），下拉切换无需重新扫描
+- **STM32 官方扩展 bundle 优先识别**：`%LOCALAPPDATA%\stm32cube\bundles\gnu-tools-for-stm32\<ver>` 自动转成 `${env:LOCALAPPDATA}/...` 可移植格式写入 launch.json
+- **target.cfg / interface.cfg 智能匹配**：根据设备型号推 target（`STM32H7 → stm32h7x.cfg`）；接口默认 `cmsis-dap.cfg → stlink.cfg`；用户手动选择后不再覆盖
+- **SWD / JTAG 传输方式选择**：影响 `interface` 字段和 `openOCDLaunchCommands` 的 `transport select`
+- **`gdbPath` 自动写入**：根据工具链 bin 推导，ST bundle 走可移植形式
+
+#### 🎨 UI 重做
+- **12 列响应式 grid + 卡片布局**，替代原来的长竖条。卡片：项目 / 目标设备 / GDB Server / ARM 工具链 / 高级选项
+- 编号徽章、统一间距阶梯、native VS Code 颜色变量、自定义下拉箭头、status / info 卡视觉重做
+
+#### 🔧 修复
+- `armToolchainPath` 修正为 bin 目录（cortex-debug 期望的格式），之前错写成 `gcc.exe` 完整路径
+- 生成的 launch.json 补全 `serverpath` / `interface` / `showDevDebugOutput` / `transport select`，空 SVD 不再写入
+- 不再生成 `${command:st-stm32-ide-debug-launch...}` 这种依赖 ST 扩展的字符串
+- 修复 webview 消息丢失 race（`onDidReceiveMessage` 注册时机过晚导致 cfg 下拉一直空）
+- 修复 `expandPath` 通配符 `*` 在路径中段时 baseDir 算偏一级的 bug
+- 修复多个未定义全局（`stateManager` / `createStateIndicator` / `validateGenerationData`）导致 webview 初始化崩溃
+- 修复 target / interface 智能填充被默认选中误判为"用户已选过"
+- 修复语言切换 dropdown 与实际 UI 不一致
+
+#### 🛠 开发体验
+- `scripts/watch-all.js` 同时盯 TS 和 webview，调试时改完直接重启 webview 即可
+- `.vscode/launch.json` 新增 "Run Extension (Clean)" profile，禁用噪音扩展（CodeGeeX / CMake Tools / GitLens 等）保留 cortex-debug
+- 39 个独立测试用例：`npm run test:device` / `test:arm` / `test:target` / `test:exec`
+
+### 版本 0.2.5
 - 📚 **文档和打包更新**：同步所有版本的README版本信息和更新日志
 - 📦 **包优化**：清理VSIX包，排除开发文件和文档
 - ✅ **版本一致性**：确保package.json、README和GitHub发布版本对齐

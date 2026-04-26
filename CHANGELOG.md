@@ -6,6 +6,45 @@ STM32 Debug Configurator 扩展的所有重要变更都将记录在此文件中�
 此项目遵循 [语义化版本控制](https://semver.org/lang/zh-CN/)。
 
 
+## [1.0.0] - 2026-04-27
+
+正式版发布 🎉。本版本对配置生成体验做了大量自动化与 UI 重构，把"读 .ioc → 找工具链 → 选 cfg → 输出 launch.json"全链路从手动填表升级为一键完成。
+
+### 新增 (Added)
+- ✨ **STM32 设备自动检测**：扫描工作区里的 `.ioc` / `.cproject` / `CMakeLists.txt`，自动填入设备型号（如 `STM32H743ZITx`），下方显示来源文件
+- ✨ **固件文件自动扫描**：在 `build/Debug` / `build/Release` / `Debug` / `Release` / `out` 等常见输出目录里发现所有 `.elf` / `.axf` / `.bin` / `.hex`，按 variant 优先级（Debug > Release）和 kind（elf > axf > hex > bin）排序，下拉让用户选择
+- ✨ **OpenOCD cfg 模态选择器**：原"搜索框 + 下拉"两条堆叠改为单输入框，点击弹出居中模态对话框，顶部搜索 + 滚动列表 + 当前值高亮 + ↑↓/Enter/Esc 键盘操作 + 背景模糊
+- ✨ **ARM 工具链多候选下拉**：`enumerateArmToolchains()` 同时枚举所有候选（ST bundle 多版本、PATH、cortex-debug 用户配置、其他常见路径），用户可在下拉里切换，input 与版本卡同步刷新
+- ✨ **STM32 VS Code Extension bundle 优先**：扫描 `%LOCALAPPDATA%\stm32cube\bundles\gnu-tools-for-stm32\<ver>\bin`，自动转成 `${env:LOCALAPPDATA}/...` 可移植路径写入 launch.json
+- ✨ **target.cfg 智能匹配**：根据设备型号推断 OpenOCD target.cfg（`STM32H743ZITx → stm32h7x.cfg`、`STM32F407 → stm32f4x.cfg` 等 6+ 个系列）
+- ✨ **interface.cfg 智能匹配**：默认按 `cmsis-dap.cfg → stlink.cfg → stlink-v2.cfg` 顺序选中
+- ✨ **SWD / JTAG 传输方式选择**：UI 下拉切换，影响 `interface` 字段和 `openOCDLaunchCommands` 里的 `transport select`
+- ✨ **gdbPath 自动写入**：`launch.json` 同时写入 `gdbPath`（基于 toolchain bin 推导，ST bundle 走可移植形式）
+- ✨ **干净开发环境 launch 配置**：`.vscode/launch.json` 新增 "Run Extension (Clean)"，禁用噪音扩展（CodeGeeX / CMake Tools / GitLens 等）保留 cortex-debug
+- ✨ **联合 watch 脚本**：`scripts/watch-all.js` 同时盯 TS 和 webview 资源，调试时改完直接重启 webview 即可，无需手动 compile
+- ✨ **测试脚本**：`test:device` / `test:arm` / `test:target` / `test:exec` 共 39 个独立运行的用例
+
+### 改进 (Changed)
+- 🎨 **webview UI 完全重做**：12 列响应式 grid 布局，5 张卡片（项目 / 目标设备 / GDB Server / ARM 工具链 / 高级选项）替代原来的长竖条，每张卡左上角带 01–05 编号徽章；卡片化间距、统一 typography、native VS Code 颜色变量
+- 🎨 GDB Server 卡片内部用 row helper 实现 Server / Transport / Speed 三列并排
+- 🔧 `armToolchainPath` 输出修正：cortex-debug 期望 bin 目录，之前错误写成 `gcc.exe` 完整路径
+- 🔧 launch.json 输出补全 `serverpath` / `interface` / `showDevDebugOutput`，`openOCDLaunchCommands` 加 `transport select`，空 SVD 不再写 `"svdFile": ""`
+- 🔧 不再生成 `${command:st-stm32-ide-debug-launch...}` 这种依赖 ST 扩展的字符串，直接写实际路径
+
+### 修复 (Fixed)
+- 🐛 **webview 消息丢失 race**：`onDidReceiveMessage` 之前注册在所有 `postMessage` 之后，导致 webview 回复的 `getCFGFiles` 落到一个还没注册的监听器上 → cfg 下拉一直空，用户被迫手动点扫描
+- 🐛 **激活期 OpenOCD 检测 race**：`findOpenOCDPath()` 是 fire-and-forget 异步，开 webview 比检测完成早时把 `null` 推给 webview。改成全局 promise，start 命令 await 一次
+- 🐛 **状态恢复不触发 cfg 加载**：`restoreState` / `restoreFormState` 把 openocd 路径写回 input 但没主动调 `requestCFGFiles()`
+- 🐛 **`expandPath` 通配符解析**：`*` 在路径中段时（`dir/*/sub`）`baseDir` 算偏一级，导致 ST bundle 多版本目录从未被扫到
+- 🐛 **多个未定义全局**：`stateManager` / `createStateIndicator` / `validateGenerationData` 等遗留引用导致 IIFE 加载时 ReferenceError，初始化流程从未跑到，连带语言切换、生成按钮全部失效
+- 🐛 **target / interface 智能填充失效**：`populateDropdown` 程序填充后浏览器默认选中第一项被误判为"用户已选过"，跳过 smart fill。用 `targetUserPicked` / `interfaceUserPicked` flag 显式追踪用户操作
+- 🐛 **语言切换 bug**：webview localStorage 里的 `language` 与扩展端 `localizationManager` 不同步，dropdown 显示中文但 UI 是英文。`restoreFormState` 在恢复语言时主动发 `switchLanguage` 给后端
+
+### 技术改进 (Technical)
+- 🏗️ 新模块 `deviceDetector` / `executableDetector`，纯 fs 实现可独立测试，VS Code API 延迟加载
+- 🏗️ 新模块 `armToolchain` 增加 `enumerateArmToolchains` / `toolchainBinDir` / `toPortableArmToolchainPath` / `deriveGdbPath` / `isStBundleArmToolchainPath` 5 个 helper
+- 🏗️ webview 端 `cfgPicker` 对象统一管理模态选择器，键盘操作 + 当前值定位 + 滚动到激活项
+
 ## [0.2.6] - 2026-01-23
 
 ### 修复 (Fixed)
