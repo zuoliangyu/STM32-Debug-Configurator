@@ -6,6 +6,12 @@ STM32 Debug Configurator 扩展的所有重要变更都将记录在此文件中�
 此项目遵循 [语义化版本控制](https://semver.org/lang/zh-CN/)。
 
 
+## [1.0.2] - 2026-04-28
+
+### 修复 (Fixed)
+- 🐛 **修复 Marketplace 安装后所有命令报 `command 'xxx' not found` 的致命问题**：`src/services/index.ts` 的 barrel 文件意外再导出了 `./toolchainDetectionService.test`，编译产物里 `out/services/index.js` 因此 `require('./toolchainDetectionService.test')`；而 `.vscodeignore` 已经把 `*.test.js` 从 vsix 里排除，导致扩展激活时 `Cannot find module` 异常，`activate()` 整个挂掉，所有命令注册都跑不到。dev (F5) 因为 out/ 完整不受影响，只有发布版本受波及
+
+
 ## [1.0.1] - 2026-04-27
 
 ### 改进 (Changed)

@@ -35,11 +35,6 @@ export {
 } from './cacheManager';
 
 export {
-    ToolchainDetectionServiceTest,
-    runToolchainDetectionTests
-} from './toolchainDetectionService.test';
-
-export {
     StateManager,
     ExtensionConfigurationState,
     LiveWatchState

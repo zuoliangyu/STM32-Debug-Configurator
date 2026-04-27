@@ -2,7 +2,7 @@
   "name": "stm32-configurator-by-zuolan",
   "displayName": "STM32 Debug Configurator (by zuolan)",
   "description": "A visual configurator for STM32 Cortex-Debug.",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "engines": {
     "vscode": "^1.80.0"
   },
