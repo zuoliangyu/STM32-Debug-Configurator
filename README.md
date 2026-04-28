@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![版本](https://img.shields.io/badge/version-1.0.1-blue.svg)
+![版本](https://img.shields.io/badge/version-1.0.3-blue.svg)
 ![VS Code](https://img.shields.io/badge/VS%20Code-^1.80.0-007ACC.svg)
 ![许可证](https://img.shields.io/badge/license-MIT-green.svg)
 ![作者](https://img.shields.io/badge/author-左岚-orange.svg)
@@ -359,7 +359,17 @@ monitor reset run      # 复位并运行
 
 ## 📝 更新日志
 
-### 版本 1.0.1（最新）— 2026 年 4 月
+### 版本 1.0.3（最新）— 2026 年 4 月
+
+#### 🐛 修复
+- **OpenOCD scripts 目录识别覆盖更多打包方式**：之前只检查 `<root>/share/openocd/scripts` 和 `<root>/scripts`，遇到从 GitHub 下载的 win32-x64 包多嵌一层 `openocd/`（`C:\Program Files\openocd\openocd\scripts\`）的解压结构时，cfg 选择器一直空。新增对 `OPENOCD_SCRIPTS` 环境变量、`<root>/openocd/scripts`、`<root>/openocd/share/openocd/scripts`、`<binDir>/scripts` 的识别，并以 installRoot 为起点递归两层兜底搜索；候选要求同时含 `interface/` 和 `target/` 子目录避免误命中
+
+### 版本 1.0.2 — 2026 年 4 月
+
+#### 🐛 修复
+- **修复 Marketplace 安装后所有命令报 `command 'xxx' not found` 的致命问题**：`src/services/index.ts` 的 barrel 文件意外再导出了 `./toolchainDetectionService.test`，编译产物里 `out/services/index.js` 因此 `require('./toolchainDetectionService.test')`；`.vscodeignore` 已把 `*.test.js` 从 vsix 排除，导致激活时 `Cannot find module` 异常，`activate()` 整个挂掉，所有命令注册都跑不到。dev (F5) 因为 out/ 完整不受影响，只有发布版本受波及
+
+### 版本 1.0.1 — 2026 年 4 月
 
 #### 🌏 默认语言改为中文
 - 扩展首次安装时 webview UI 默认显示中文；如果 VS Code 本身是英文界面则自动切换为英文

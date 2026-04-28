@@ -6,6 +6,12 @@ STM32 Debug Configurator 扩展的所有重要变更都将记录在此文件中�
 此项目遵循 [语义化版本控制](https://semver.org/lang/zh-CN/)。
 
 
+## [1.0.3] - 2026-04-28
+
+### 修复 (Fixed)
+- 🐛 **OpenOCD scripts 目录识别覆盖更多打包方式**：`getOpenOCDConfigFiles` 之前只查 `<root>/share/openocd/scripts` 和 `<root>/scripts`；用户从 GitHub 下载 win32-x64 包后若解压结构是 `C:\Program Files\openocd\bin\openocd.exe` + `C:\Program Files\openocd\openocd\scripts\`（多嵌一层 `openocd/`），cfg 选择器会一直空。新增 `OPENOCD_SCRIPTS` 环境变量、`<root>/openocd/scripts`、`<root>/openocd/share/openocd/scripts`、`<binDir>/scripts` 四条候选路径，并以 installRoot 为起点向下递归两层兜底搜索；候选要求同时包含 `interface/` 和 `target/` 子目录避免误匹配。找到/未找到结果都打到 console，方便后续排查
+
+
 ## [1.0.2] - 2026-04-28
 
 ### 修复 (Fixed)

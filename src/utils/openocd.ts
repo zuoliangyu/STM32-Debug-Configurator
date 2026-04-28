@@ -186,6 +186,40 @@ export function findOpenOCDPath(): Promise<string | null> {
 }
 
 /**
+ * 从给定根目录向下搜索 scripts 目录
+ * 限制搜索深度避免遍历整个磁盘
+ */
+function findScriptsDirRecursive(
+    root: string,
+    maxDepth: number,
+    isMatch: (p: string) => boolean
+): string | undefined {
+    if (maxDepth < 0) {
+        return undefined;
+    }
+    let entries: fs.Dirent[];
+    try {
+        entries = fs.readdirSync(root, { withFileTypes: true });
+    } catch {
+        return undefined;
+    }
+    for (const entry of entries) {
+        if (!entry.isDirectory()) {
+            continue;
+        }
+        const sub = path.join(root, entry.name);
+        if (isMatch(sub)) {
+            return sub;
+        }
+        const nested = findScriptsDirRecursive(sub, maxDepth - 1, isMatch);
+        if (nested) {
+            return nested;
+        }
+    }
+    return undefined;
+}
+
+/**
  * 获取OpenOCD配置文件
  * 根据OpenOCD可执行文件路径，读取其scripts目录下的接口和目标配置文件
  * 
@@ -209,17 +243,48 @@ export async function getOpenOCDConfigFiles(openocdExePath: string): Promise<{ i
 
     try {
         const binDir = path.dirname(openocdExePath);
-        // OpenOCD 的 scripts 文件夹通常在 bin 目录的上一级的 share/openocd/scripts 或 scripts 目录中
-        const possibleScriptsPaths = [
-            path.join(binDir, '..', 'share', 'openocd', 'scripts'),
-            path.join(binDir, '..', 'scripts')
-        ];
+        const installRoot = path.dirname(binDir);
 
-        const scriptsPath = possibleScriptsPaths.find(p => fs.existsSync(p));
+        // OpenOCD scripts 目录的常见布局：
+        //   xpack:                <root>/scripts/
+        //   官方 / sysprogs:      <root>/share/openocd/scripts/
+        //   解压时多嵌一层 openocd: <root>/openocd/scripts/  或  <root>/openocd/share/openocd/scripts/
+        //   极少见的并列布局:      <binDir>/scripts/
+        //   显式环境变量:          OPENOCD_SCRIPTS
+        const candidates = [
+            process.env.OPENOCD_SCRIPTS,
+            path.join(installRoot, 'share', 'openocd', 'scripts'),
+            path.join(installRoot, 'scripts'),
+            path.join(installRoot, 'openocd', 'scripts'),
+            path.join(installRoot, 'openocd', 'share', 'openocd', 'scripts'),
+            path.join(binDir, 'scripts')
+        ].filter((p): p is string => !!p);
+
+        const isValidScriptsDir = (p: string): boolean => {
+            try {
+                return fs.existsSync(p)
+                    && fs.existsSync(path.join(p, 'interface'))
+                    && fs.existsSync(path.join(p, 'target'));
+            } catch {
+                return false;
+            }
+        };
+
+        let scriptsPath = candidates.find(isValidScriptsDir);
+
+        // 兜底：以安装根为起点向下扫两层，找到第一个同时含 interface/ 和 target/ 的目录
+        if (!scriptsPath) {
+            scriptsPath = findScriptsDirRecursive(installRoot, 2, isValidScriptsDir);
+        }
 
         if (!scriptsPath) {
+            console.warn(
+                `[OpenOCD] 未在 ${openocdExePath} 附近找到 scripts 目录，已尝试: ${candidates.join(', ')}`
+            );
             return { interfaces: [], targets: [] };
         }
+
+        console.log(`[OpenOCD] 使用 scripts 目录: ${scriptsPath}`);
 
         const interfaceDir = path.join(scriptsPath, 'interface');
         const targetDir = path.join(scriptsPath, 'target');

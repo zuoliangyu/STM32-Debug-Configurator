@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.3-blue.svg)
 ![VS Code](https://img.shields.io/badge/VS%20Code-^1.80.0-007ACC.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)
@@ -880,7 +880,17 @@ npm run test:watch
 
 ## 📝 Release Notes
 
-### Version 1.0.1 (Current) - April 2026
+### Version 1.0.3 (Current) - April 2026
+
+#### 🐛 Fixes
+- **OpenOCD scripts directory detection covers more packaging layouts**: Previously only `<root>/share/openocd/scripts` and `<root>/scripts` were checked. Users who extract the GitHub win32-x64 release into a folder with an extra nested `openocd/` directory (e.g. `C:\Program Files\openocd\bin\openocd.exe` + `C:\Program Files\openocd\openocd\scripts\`) saw an empty cfg picker. Added support for the `OPENOCD_SCRIPTS` env var, `<root>/openocd/scripts`, `<root>/openocd/share/openocd/scripts`, and `<binDir>/scripts`, plus a recursive two-level fallback scan from the install root. Candidates must contain both `interface/` and `target/` subdirectories to avoid false matches.
+
+### Version 1.0.2 - April 2026
+
+#### 🐛 Fixes
+- **Fixed `command 'xxx' not found` for every command after Marketplace install**: `src/services/index.ts` barrel re-exported `./toolchainDetectionService.test`, so the compiled `out/services/index.js` did `require('./toolchainDetectionService.test')`. `.vscodeignore` already excludes `*.test.js` from the vsix, so activation threw `Cannot find module`, `activate()` died, and no command was ever registered. Dev (F5) was unaffected because the full `out/` was present locally — only published builds broke.
+
+### Version 1.0.1 - April 2026
 
 #### 🌏 Default Language Switched to Chinese
 - New installs now show the webview UI in Chinese by default. English VS Code locales still get the English UI automatically.
